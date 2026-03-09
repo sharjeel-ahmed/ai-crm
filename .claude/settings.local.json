@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(timeout 5 node:*)",
+      "Bash(npx vite:*)",
+      "Bash(node:*)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Bash(powershell:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm run:*)",
+      "Bash(netstat:*)",
+      "WebSearch",
+      "WebFetch(domain:www.humanlayer.dev)",
+      "WebFetch(domain:www.builder.io)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(cat:*)",
+      "Bash(xargs grep:*)",
+      "Bash(\"/c/Program Files \\(x86\\)/Microsoft/Edge/Application/msedge.exe\":*)",
+      "Bash(gh auth:*)",
+      "Bash(where gh:*)",
+      "Bash(export:*)"
+    ]
+  }
+}

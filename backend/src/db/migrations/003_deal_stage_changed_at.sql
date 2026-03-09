@@ -1,0 +1,2 @@
+-- Track when a deal last changed stage
+-- Column added via migrate.js (ALTER TABLE not idempotent in SQLite)

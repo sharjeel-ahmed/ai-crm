@@ -1,0 +1,6 @@
+node_modules/
+dist/
+backend/data/
+.env
+*.pdf
+client_secret_*.json

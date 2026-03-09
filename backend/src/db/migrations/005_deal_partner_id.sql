@@ -1,0 +1,1 @@
+-- Add partner_id to deals (handled in migrate.js due to SQLite ALTER TABLE limitations)

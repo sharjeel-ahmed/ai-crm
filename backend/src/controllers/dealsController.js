@@ -1,0 +1,256 @@
+const { getDb } = require('../db/connection');
+
+function scopeQuery(req) {
+  if (req.user.role === 'sales_rep') {
+    return { where: 'AND d.owner_id = ?', params: [req.user.id] };
+  }
+  return { where: '', params: [] };
+}
+
+function getAll(req, res) {
+  const db = getDb();
+  const scope = scopeQuery(req);
+  const deals = db.prepare(`
+    SELECT d.*, ds.name as stage_name, c.name as company_name,
+      ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
+      p.name as partner_name
+    FROM deals d
+    LEFT JOIN deal_stages ds ON d.stage_id = ds.id
+    LEFT JOIN companies c ON d.company_id = c.id
+    LEFT JOIN contacts ct ON d.contact_id = ct.id
+    LEFT JOIN users u ON d.owner_id = u.id
+    LEFT JOIN partners p ON d.partner_id = p.id
+    WHERE 1=1 ${scope.where}
+    ORDER BY d.created_at DESC
+  `).all(...scope.params);
+  res.json(deals);
+}
+
+function getPipeline(req, res) {
+  const db = getDb();
+  const scope = scopeQuery(req);
+  const stages = db.prepare('SELECT * FROM deal_stages ORDER BY display_order').all();
+  const deals = db.prepare(`
+    SELECT d.*, ds.name as stage_name, c.name as company_name,
+      ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
+      p.name as partner_name
+    FROM deals d
+    LEFT JOIN deal_stages ds ON d.stage_id = ds.id
+    LEFT JOIN companies c ON d.company_id = c.id
+    LEFT JOIN contacts ct ON d.contact_id = ct.id
+    LEFT JOIN users u ON d.owner_id = u.id
+    LEFT JOIN partners p ON d.partner_id = p.id
+    WHERE 1=1 ${scope.where}
+    ORDER BY d.position
+  `).all(...scope.params);
+
+  const pipeline = stages.map(stage => ({
+    ...stage,
+    deals: deals.filter(d => d.stage_id === stage.id),
+  }));
+  res.json(pipeline);
+}
+
+function getById(req, res) {
+  const db = getDb();
+  const deal = db.prepare(`
+    SELECT d.*, ds.name as stage_name, c.name as company_name,
+      ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
+      p.name as partner_name
+    FROM deals d
+    LEFT JOIN deal_stages ds ON d.stage_id = ds.id
+    LEFT JOIN companies c ON d.company_id = c.id
+    LEFT JOIN contacts ct ON d.contact_id = ct.id
+    LEFT JOIN users u ON d.owner_id = u.id
+    LEFT JOIN partners p ON d.partner_id = p.id
+    WHERE d.id = ?
+  `).get(req.params.id);
+  if (!deal) return res.status(404).json({ error: 'Deal not found' });
+
+  // Get contacts linked to the same company
+  const contacts = deal.company_id
+    ? db.prepare(`
+        SELECT ct.*, u.name as owner_name
+        FROM contacts ct
+        LEFT JOIN users u ON ct.owner_id = u.id
+        WHERE ct.company_id = ?
+        ORDER BY ct.last_name, ct.first_name
+      `).all(deal.company_id)
+    : [];
+
+  // Get activities linked to this deal OR to any of the deal's company contacts
+  const contactIds = contacts.map(c => c.id);
+  let dealActivities;
+  if (contactIds.length > 0) {
+    const contactPlaceholders = contactIds.map(() => '?').join(',');
+    dealActivities = db.prepare(`
+      SELECT a.id, a.type, a.subject, a.description, a.created_at, a.ai_generated,
+             a.is_completed, a.due_date,
+             u.name as user_name, d.title as deal_title,
+             ct.first_name || ' ' || ct.last_name as contact_name,
+             'activity' as source
+      FROM activities a
+      LEFT JOIN users u ON a.user_id = u.id
+      LEFT JOIN deals d ON a.deal_id = d.id
+      LEFT JOIN contacts ct ON a.contact_id = ct.id
+      WHERE a.deal_id = ? OR a.contact_id IN (${contactPlaceholders})
+    `).all(req.params.id, ...contactIds);
+  } else {
+    dealActivities = db.prepare(`
+      SELECT a.id, a.type, a.subject, a.description, a.created_at, a.ai_generated,
+             a.is_completed, a.due_date,
+             u.name as user_name, d.title as deal_title,
+             ct.first_name || ' ' || ct.last_name as contact_name,
+             'activity' as source
+      FROM activities a
+      LEFT JOIN users u ON a.user_id = u.id
+      LEFT JOIN deals d ON a.deal_id = d.id
+      LEFT JOIN contacts ct ON a.contact_id = ct.id
+      WHERE a.deal_id = ?
+    `).all(req.params.id);
+  }
+
+  // Get related emails (from/to contacts of the deal's company)
+  let emailActivities = [];
+  if (contacts.length > 0) {
+    const contactEmails = contacts.map(c => c.email).filter(Boolean);
+    if (contactEmails.length > 0) {
+      const placeholders = contactEmails.map(() => '?').join(',');
+      const lowerEmails = contactEmails.map(e => e.toLowerCase());
+      emailActivities = db.prepare(`
+        SELECT e.id, e.subject, e.from_address, e.from_name, e.to_addresses,
+               e.date as created_at, e.is_inbound, 'email' as source
+        FROM emails e
+        WHERE LOWER(e.from_address) IN (${placeholders})
+           OR EXISTS (
+             SELECT 1 FROM json_each(e.to_addresses) je
+             WHERE LOWER(TRIM(je.value, '"')) IN (${lowerEmails.map(() => '?').join(',')})
+           )
+        ORDER BY e.date DESC
+      `).all(...lowerEmails, ...lowerEmails);
+    }
+  }
+
+  // Merge and sort by date, newest first
+  const allActivities = [
+    ...dealActivities.map(a => ({
+      ...a,
+      sort_date: a.created_at,
+    })),
+    ...emailActivities.map(e => ({
+      id: `email-${e.id}`,
+      type: 'email',
+      subject: e.subject || '(no subject)',
+      description: e.is_inbound
+        ? `From: ${e.from_name || e.from_address}`
+        : `To: ${(() => { try { return JSON.parse(e.to_addresses).join(', '); } catch { return e.to_addresses; } })()}`,
+      created_at: e.created_at,
+      source: 'email',
+      is_inbound: e.is_inbound,
+      sort_date: e.created_at,
+    })),
+  ].sort((a, b) => new Date(b.sort_date) - new Date(a.sort_date));
+
+  const total_activities = allActivities.length;
+  const showAll = req.query.all_activities === '1';
+  const activities = showAll ? allActivities : allActivities.slice(0, 10);
+
+  res.json({ ...deal, contacts, activities, total_activities });
+}
+
+function create(req, res) {
+  const { title, value, stage_id, company_id, contact_id, expected_close, notes, lead_source, partner_id } = req.body;
+  if (!title || !stage_id) return res.status(400).json({ error: 'Title and stage required' });
+  if (!company_id) return res.status(400).json({ error: 'Company is required' });
+
+  const db = getDb();
+  const maxPos = db.prepare('SELECT COALESCE(MAX(position), 0) + 1 as next FROM deals WHERE stage_id = ?').get(stage_id);
+  const result = db.prepare("INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id, position, stage_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))")
+    .run(title, value || 0, stage_id, company_id || null, contact_id || null, req.user.id, expected_close || null, notes || null, lead_source || null, partner_id || null, maxPos.next);
+  const deal = db.prepare(`
+    SELECT d.*, ds.name as stage_name, c.name as company_name,
+      ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
+      p.name as partner_name
+    FROM deals d
+    LEFT JOIN deal_stages ds ON d.stage_id = ds.id
+    LEFT JOIN companies c ON d.company_id = c.id
+    LEFT JOIN contacts ct ON d.contact_id = ct.id
+    LEFT JOIN users u ON d.owner_id = u.id
+    LEFT JOIN partners p ON d.partner_id = p.id
+    WHERE d.id = ?
+  `).get(result.lastInsertRowid);
+
+  // Log deal creation activity
+  db.prepare(
+    "INSERT INTO activities (type, subject, description, deal_id, user_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, datetime('now'), datetime('now'))"
+  ).run(`Deal created`, `Deal "${title}" created in stage ${deal.stage_name}${deal.company_name ? ` for ${deal.company_name}` : ''}`, deal.id, req.user.id);
+
+  res.status(201).json(deal);
+}
+
+function update(req, res) {
+  const { title, value, stage_id, company_id, contact_id, expected_close, notes, lead_source, partner_id } = req.body;
+  const db = getDb();
+  const deal = db.prepare('SELECT * FROM deals WHERE id = ?').get(req.params.id);
+  if (!deal) return res.status(404).json({ error: 'Deal not found' });
+
+  const newStageId = stage_id || deal.stage_id;
+  const stageChanged = newStageId !== deal.stage_id;
+  db.prepare(`UPDATE deals SET title = ?, value = ?, stage_id = ?, company_id = ?, contact_id = ?, expected_close = ?, notes = ?, lead_source = ?, partner_id = ?, updated_at = datetime('now')${stageChanged ? ", stage_changed_at = datetime('now')" : ''} WHERE id = ?`)
+    .run(
+      title || deal.title, value !== undefined ? value : deal.value,
+      newStageId,
+      company_id !== undefined ? company_id : deal.company_id,
+      contact_id !== undefined ? contact_id : deal.contact_id,
+      expected_close !== undefined ? expected_close : deal.expected_close,
+      notes !== undefined ? notes : deal.notes,
+      lead_source !== undefined ? lead_source : deal.lead_source,
+      partner_id !== undefined ? partner_id : deal.partner_id,
+      req.params.id
+    );
+  const updated = db.prepare(`
+    SELECT d.*, ds.name as stage_name, c.name as company_name,
+      ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
+      p.name as partner_name
+    FROM deals d LEFT JOIN deal_stages ds ON d.stage_id = ds.id
+    LEFT JOIN companies c ON d.company_id = c.id
+    LEFT JOIN contacts ct ON d.contact_id = ct.id
+    LEFT JOIN users u ON d.owner_id = u.id
+    LEFT JOIN partners p ON d.partner_id = p.id WHERE d.id = ?
+  `).get(req.params.id);
+  res.json(updated);
+}
+
+function updateStage(req, res) {
+  const { stage_id, position } = req.body;
+  if (!stage_id) return res.status(400).json({ error: 'stage_id required' });
+
+  const db = getDb();
+  const deal = db.prepare('SELECT * FROM deals WHERE id = ?').get(req.params.id);
+  if (!deal) return res.status(404).json({ error: 'Deal not found' });
+
+  const oldStage = db.prepare('SELECT name FROM deal_stages WHERE id = ?').get(deal.stage_id);
+  const newStage = db.prepare('SELECT name FROM deal_stages WHERE id = ?').get(stage_id);
+
+  const stageChanged = deal.stage_id !== stage_id;
+  db.prepare(`UPDATE deals SET stage_id = ?, position = ?, updated_at = datetime('now')${stageChanged ? ", stage_changed_at = datetime('now')" : ''} WHERE id = ?`)
+    .run(stage_id, position !== undefined ? position : 0, req.params.id);
+
+  // Log stage movement activity
+  if (deal.stage_id !== stage_id) {
+    db.prepare(
+      "INSERT INTO activities (type, subject, description, deal_id, user_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, datetime('now'), datetime('now'))"
+    ).run('Stage changed', `Moved from ${oldStage?.name || 'Unknown'} to ${newStage?.name || 'Unknown'}`, req.params.id, req.user.id);
+  }
+
+  res.json({ message: 'Stage updated' });
+}
+
+function remove(req, res) {
+  const db = getDb();
+  const result = db.prepare('DELETE FROM deals WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Deal not found' });
+  res.json({ message: 'Deal deleted' });
+}
+
+module.exports = { getAll, getPipeline, getById, create, update, updateStage, remove };
