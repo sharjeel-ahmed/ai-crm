@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     nodeVersion: "20"
-    buildCommand: cd backend && npm install && cd ../frontend && npm install && npx vite build
+    buildCommand: npm install --prefix backend && cd frontend && npm install && ./node_modules/.bin/vite build
     startCommand: node backend/src/index.js
     envVars:
       - key: NODE_ENV
