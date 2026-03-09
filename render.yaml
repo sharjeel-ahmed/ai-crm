@@ -3,6 +3,7 @@ services:
     name: pazo-crm
     runtime: node
     plan: free
+    nodeVersion: "20"
     buildCommand: cd backend && npm install && cd ../frontend && npm install && npm run build
     startCommand: cd backend && node src/index.js
     envVars:
