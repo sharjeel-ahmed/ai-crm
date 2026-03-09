@@ -7,6 +7,40 @@ function scopeQuery(req) {
   return { where: '', params: [] };
 }
 
+function getOwnerById(db, ownerId) {
+  if (!ownerId) return null;
+  return db.prepare('SELECT id, name, email, role FROM users WHERE id = ? AND is_active = 1').get(ownerId);
+}
+
+function resolveOwnerId(db, ownerId, fallbackOwnerId) {
+  const resolvedOwnerId = ownerId !== undefined && ownerId !== null && ownerId !== '' ? parseInt(ownerId, 10) : fallbackOwnerId;
+  if (!resolvedOwnerId) {
+    return { error: 'Owner is required' };
+  }
+
+  if (Number.isNaN(resolvedOwnerId)) {
+    return { error: 'Owner must be a valid user' };
+  }
+
+  const owner = getOwnerById(db, resolvedOwnerId);
+  if (!owner) {
+    return { error: 'Selected owner was not found or is inactive' };
+  }
+
+  return { ownerId: resolvedOwnerId, owner };
+}
+
+function getOwners(req, res) {
+  const db = getDb();
+  const owners = db.prepare(`
+    SELECT id, name, email, role
+    FROM users
+    WHERE is_active = 1
+    ORDER BY name
+  `).all();
+  res.json(owners);
+}
+
 function getAll(req, res) {
   const db = getDb();
   const scope = scopeQuery(req);
@@ -159,14 +193,19 @@ function getById(req, res) {
 }
 
 function create(req, res) {
-  const { title, value, stage_id, company_id, contact_id, expected_close, notes, lead_source, partner_id } = req.body;
+  const { title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id } = req.body;
   if (!title || !stage_id) return res.status(400).json({ error: 'Title and stage required' });
   if (!company_id) return res.status(400).json({ error: 'Company is required' });
 
   const db = getDb();
+  const ownerResolution = resolveOwnerId(db, owner_id, req.user.id);
+  if (ownerResolution.error) {
+    return res.status(400).json({ error: ownerResolution.error });
+  }
+
   const maxPos = db.prepare('SELECT COALESCE(MAX(position), 0) + 1 as next FROM deals WHERE stage_id = ?').get(stage_id);
   const result = db.prepare("INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id, position, stage_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))")
-    .run(title, value || 0, stage_id, company_id || null, contact_id || null, req.user.id, expected_close || null, notes || null, lead_source || null, partner_id || null, maxPos.next);
+    .run(title, value || 0, stage_id, company_id || null, contact_id || null, ownerResolution.ownerId, expected_close || null, notes || null, lead_source || null, partner_id || null, maxPos.next);
   const deal = db.prepare(`
     SELECT d.*, ds.name as stage_name, c.name as company_name,
       ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
@@ -189,19 +228,25 @@ function create(req, res) {
 }
 
 function update(req, res) {
-  const { title, value, stage_id, company_id, contact_id, expected_close, notes, lead_source, partner_id } = req.body;
+  const { title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id } = req.body;
   const db = getDb();
   const deal = db.prepare('SELECT * FROM deals WHERE id = ?').get(req.params.id);
   if (!deal) return res.status(404).json({ error: 'Deal not found' });
 
+  const ownerResolution = resolveOwnerId(db, owner_id, deal.owner_id);
+  if (ownerResolution.error) {
+    return res.status(400).json({ error: ownerResolution.error });
+  }
+
   const newStageId = stage_id || deal.stage_id;
   const stageChanged = newStageId !== deal.stage_id;
-  db.prepare(`UPDATE deals SET title = ?, value = ?, stage_id = ?, company_id = ?, contact_id = ?, expected_close = ?, notes = ?, lead_source = ?, partner_id = ?, updated_at = datetime('now')${stageChanged ? ", stage_changed_at = datetime('now')" : ''} WHERE id = ?`)
+  db.prepare(`UPDATE deals SET title = ?, value = ?, stage_id = ?, company_id = ?, contact_id = ?, owner_id = ?, expected_close = ?, notes = ?, lead_source = ?, partner_id = ?, updated_at = datetime('now')${stageChanged ? ", stage_changed_at = datetime('now')" : ''} WHERE id = ?`)
     .run(
       title || deal.title, value !== undefined ? value : deal.value,
       newStageId,
       company_id !== undefined ? company_id : deal.company_id,
       contact_id !== undefined ? contact_id : deal.contact_id,
+      ownerResolution.ownerId,
       expected_close !== undefined ? expected_close : deal.expected_close,
       notes !== undefined ? notes : deal.notes,
       lead_source !== undefined ? lead_source : deal.lead_source,
@@ -253,4 +298,4 @@ function remove(req, res) {
   res.json({ message: 'Deal deleted' });
 }
 
-module.exports = { getAll, getPipeline, getById, create, update, updateStage, remove };
+module.exports = { getOwners, getAll, getPipeline, getById, create, update, updateStage, remove };

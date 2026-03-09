@@ -79,7 +79,8 @@ export default function PipelinePage() {
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [partners, setPartners] = useState([]);
-  const [form, setForm] = useState({ title: '', value: '', stage_id: '', company_id: '', contact_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '' });
+  const [owners, setOwners] = useState([]);
+  const [form, setForm] = useState({ title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '' });
 
   const load = () => api.get('/deals/pipeline').then((r) => setPipeline(r.data));
   useEffect(() => { load(); }, []);
@@ -90,17 +91,20 @@ export default function PipelinePage() {
       api.get('/companies'),
       api.get('/contacts'),
       api.get('/partners'),
-    ]).then(([stagesRes, companiesRes, contactsRes, partnersRes]) => {
+      api.get('/deals/owners'),
+    ]).then(([stagesRes, companiesRes, contactsRes, partnersRes, ownersRes]) => {
       setStages(stagesRes.data);
       setCompanies(companiesRes.data);
       setContacts(contactsRes.data);
       setPartners(partnersRes.data);
+      setOwners(ownersRes.data);
       setForm({
         title: deal.title || '',
         value: deal.value || '',
         stage_id: deal.stage_id || '',
         company_id: deal.company_id || '',
         contact_id: deal.contact_id || '',
+        owner_id: deal.owner_id || '',
         expected_close: deal.expected_close?.split('T')[0] || '',
         notes: deal.notes || '',
         lead_source: deal.lead_source || '',
@@ -119,6 +123,7 @@ export default function PipelinePage() {
       stage_id: parseInt(form.stage_id),
       company_id: form.company_id || null,
       contact_id: form.contact_id || null,
+      owner_id: form.owner_id ? parseInt(form.owner_id) : null,
       partner_id: form.partner_id || null,
       expected_close: form.expected_close || null,
     };
@@ -286,6 +291,15 @@ export default function PipelinePage() {
                 {leadSources.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Owner</label>
+              <select value={form.owner_id} onChange={(e) => setForm({ ...form, owner_id: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                <option value="">Select Owner</option>
+                {owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Partner (Optional)</label>
               <select value={form.partner_id} onChange={(e) => setForm({ ...form, partner_id: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">

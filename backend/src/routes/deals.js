@@ -4,6 +4,7 @@ const c = require('../controllers/dealsController');
 
 const router = Router();
 router.use(authenticate);
+router.get('/owners', c.getOwners);
 router.get('/', c.getAll);
 router.get('/pipeline', c.getPipeline);
 router.get('/:id', c.getById);
