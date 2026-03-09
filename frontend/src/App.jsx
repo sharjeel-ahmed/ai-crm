@@ -17,6 +17,7 @@ import AILogsPage from './pages/AILogsPage';
 import CompanyDetailPage from './pages/CompanyDetailPage';
 import DealDetailPage from './pages/DealDetailPage';
 import PartnersPage from './pages/PartnersPage';
+import ProfilePage from './pages/ProfilePage';
 
 export default function App() {
   return (
@@ -35,8 +36,9 @@ export default function App() {
             <Route path="partners" element={<PartnersPage />} />
             <Route path="activities" element={<ActivitiesPage />} />
             <Route path="reports" element={<ReportsPage />} />
-            <Route path="ai-inbox" element={<AIInboxPage />} />
-            <Route path="ai-logs" element={<AILogsPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="ai-inbox" element={<ProtectedRoute roles={['admin']}><AIInboxPage /></ProtectedRoute>} />
+            <Route path="ai-logs" element={<ProtectedRoute roles={['admin']}><AILogsPage /></ProtectedRoute>} />
             <Route path="settings" element={<ProtectedRoute roles={['admin']}><SettingsPage /></ProtectedRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
