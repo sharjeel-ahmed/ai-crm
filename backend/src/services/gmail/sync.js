@@ -2,6 +2,8 @@ const { google } = require('googleapis');
 const { getDb } = require('../../db/connection');
 const { getOAuth2Client, refreshAccessToken } = require('./oauth');
 
+const AI_IGNORE_LABEL = 'triage-noise';
+
 async function getGmailClient(account) {
   const oauth2Client = getOAuth2Client();
 
@@ -82,8 +84,14 @@ async function syncEmails(account) {
   const gmail = await getGmailClient(account);
   const db = getDb();
 
-  // Always fetch last 3 days to catch any emails missed in previous syncs
-  const query = 'newer_than:5d';
+  // Exclude noise-tagged emails at the Gmail query level so they never enter the AI pipeline.
+  const query = `newer_than:5d -label:${AI_IGNORE_LABEL}`;
+  const labelsResponse = await gmail.users.labels.list({ userId: 'me' });
+  const ignoredLabelIds = new Set(
+    (labelsResponse.data.labels || [])
+      .filter(label => label.name?.toLowerCase() === AI_IGNORE_LABEL)
+      .map(label => label.id)
+  );
 
   let synced = 0;
 
@@ -113,6 +121,10 @@ async function syncEmails(account) {
           id: msg.id,
           format: 'full',
         });
+
+        const messageLabelIds = detail.data.labelIds || [];
+        const hasIgnoredLabel = messageLabelIds.some(labelId => ignoredLabelIds.has(labelId));
+        if (hasIgnoredLabel) continue;
 
         const headers = detail.data.payload?.headers || [];
         const subject = getHeader(headers, 'Subject');
