@@ -4,11 +4,13 @@ services:
     runtime: node
     plan: free
     nodeVersion: "20"
-    buildCommand: npm install --prefix backend && cd frontend && npm install && ./node_modules/.bin/vite build
+    buildCommand: npm install --prefix backend && npm install --prefix frontend --include=dev && npm run build --prefix frontend
     startCommand: node backend/src/index.js
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
       - key: JWT_SECRET
         generateValue: true
       - key: DB_PATH
