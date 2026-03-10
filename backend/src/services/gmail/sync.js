@@ -84,8 +84,16 @@ async function syncEmails(account) {
   const gmail = await getGmailClient(account);
   const db = getDb();
 
-  // Exclude noise-tagged emails at the Gmail query level so they never enter the AI pipeline.
-  const query = `newer_than:5d -label:${AI_IGNORE_LABEL}`;
+  // Build query: if we've synced before, fetch only emails after last sync; otherwise last 5 days.
+  let dateFilter = 'newer_than:5d';
+  if (account.last_sync_at) {
+    const lastSync = new Date(account.last_sync_at);
+    const yyyy = lastSync.getFullYear();
+    const mm = String(lastSync.getMonth() + 1).padStart(2, '0');
+    const dd = String(lastSync.getDate()).padStart(2, '0');
+    dateFilter = `after:${yyyy}/${mm}/${dd}`;
+  }
+  const query = `${dateFilter} -label:${AI_IGNORE_LABEL}`;
   const labelsResponse = await gmail.users.labels.list({ userId: 'me' });
   const ignoredLabelIds = new Set(
     (labelsResponse.data.labels || [])
