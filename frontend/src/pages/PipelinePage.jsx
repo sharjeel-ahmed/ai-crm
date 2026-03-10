@@ -69,6 +69,8 @@ function DealCard({ deal, index, onClickDeal, onEditDeal }) {
 export default function PipelinePage() {
   const [pipeline, setPipeline] = useState([]);
   const scrollRef = useRef(null);
+  const topScrollRef = useRef(null);
+  const topScrollInnerRef = useRef(null);
   const navigate = useNavigate();
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -144,6 +146,12 @@ export default function PipelinePage() {
     setContentLeft(el.getBoundingClientRect().left);
     setCanScrollLeft(el.scrollLeft > 0);
     setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    if (topScrollRef.current && topScrollRef.current.scrollLeft !== el.scrollLeft) {
+      topScrollRef.current.scrollLeft = el.scrollLeft;
+    }
+    if (topScrollInnerRef.current) {
+      topScrollInnerRef.current.style.width = `${el.scrollWidth}px`;
+    }
   };
 
   useEffect(() => {
@@ -156,6 +164,20 @@ export default function PipelinePage() {
     const el = scrollRef.current;
     if (!el) return;
     el.scrollBy({ left: direction * 300, behavior: 'smooth' });
+  };
+
+  const handleTopScroll = () => {
+    const topEl = topScrollRef.current;
+    const mainEl = scrollRef.current;
+    if (!topEl || !mainEl) return;
+    if (mainEl.scrollLeft !== topEl.scrollLeft) {
+      mainEl.scrollLeft = topEl.scrollLeft;
+    }
+    checkScroll();
+  };
+
+  const handleMainScroll = () => {
+    checkScroll();
   };
 
   const handleDragEnd = async (result) => {
@@ -192,6 +214,13 @@ export default function PipelinePage() {
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-6">Pipeline</h2>
+      <div
+        ref={topScrollRef}
+        onScroll={handleTopScroll}
+        className="overflow-x-auto overflow-y-hidden mb-3 h-4"
+      >
+        <div ref={topScrollInnerRef} className="h-px" />
+      </div>
       <div className="relative">
         {/* Left arrow - fixed to viewport vertical center, after sidebar */}
         {canScrollLeft && (
@@ -217,7 +246,7 @@ export default function PipelinePage() {
         <DragDropContext onDragEnd={handleDragEnd}>
           <div
             ref={scrollRef}
-            onScroll={checkScroll}
+            onScroll={handleMainScroll}
             className="flex gap-4 overflow-x-auto pb-4"
           >
             {pipeline.map((stage) => (

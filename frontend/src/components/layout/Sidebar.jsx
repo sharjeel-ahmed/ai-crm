@@ -5,7 +5,9 @@ import {
   CalendarCheck, BarChart3, Settings, LogOut, Sparkles, ScrollText,
   PanelLeftClose, PanelLeftOpen, UserRound
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+
+const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -23,8 +25,15 @@ const navItems = [
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    return saved === null ? true : saved === 'true';
+  });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  }, [collapsed]);
 
   return (
     <aside className={`${collapsed ? 'w-16' : 'w-64'} sticky top-0 h-screen shrink-0 bg-gray-900 text-white flex flex-col transition-all duration-200`}>
