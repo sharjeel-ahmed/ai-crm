@@ -6,8 +6,6 @@ APP_NAME="pazo-crm"
 APP_DIR="/var/www/${APP_NAME}"
 BRANCH="master"
 DOMAIN=""
-EMAIL=""
-ENABLE_TLS="false"
 
 usage() {
   cat <<EOF
@@ -18,8 +16,6 @@ Optional:
   --app-dir <path>      App directory (default: ${APP_DIR})
   --branch <branch>     Git branch to deploy (default: ${BRANCH})
   --domain <domain>     Domain to configure in Nginx
-  --email <email>       Email for Certbot
-  --enable-tls          Request or renew a Let's Encrypt certificate
 EOF
 }
 
@@ -37,14 +33,6 @@ while [[ $# -gt 0 ]]; do
       DOMAIN="$2"
       shift 2
       ;;
-    --email)
-      EMAIL="$2"
-      shift 2
-      ;;
-    --enable-tls)
-      ENABLE_TLS="true"
-      shift
-      ;;
     -h|--help)
       usage
       exit 0
@@ -59,11 +47,6 @@ done
 
 if [[ ! -d "${APP_DIR}/.git" ]]; then
   echo "App directory does not contain a git repository: ${APP_DIR}" >&2
-  exit 1
-fi
-
-if [[ "${ENABLE_TLS}" == "true" && ( -z "${DOMAIN}" || -z "${EMAIL}" ) ]]; then
-  echo "--domain and --email are required when --enable-tls is set" >&2
   exit 1
 fi
 
@@ -117,12 +100,5 @@ sudo nginx -t
 sudo systemctl daemon-reload
 sudo systemctl restart "${APP_NAME}"
 sudo systemctl reload nginx
-
-if [[ "${ENABLE_TLS}" == "true" ]]; then
-  echo "Ensuring Certbot is installed..."
-  sudo apt update
-  sudo apt install -y certbot python3-certbot-nginx
-  sudo certbot --nginx --non-interactive --agree-tos -m "${EMAIL}" -d "${DOMAIN}" --redirect
-fi
 
 echo "Deployment update completed."

@@ -1,5 +1,14 @@
 const { getDb } = require('../db/connection');
 
+function getFrontendBaseUrl(req) {
+  const configured = process.env.FRONTEND_BASE_URL;
+  if (configured) return configured.replace(/\/+$/, '');
+
+  const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+  const host = req.get('x-forwarded-host') || req.get('host');
+  return `${protocol}://${host}`;
+}
+
 function getAuthUrl(req, res) {
   try {
     const { getAuthUrl } = require('../services/gmail/oauth');
@@ -35,10 +44,12 @@ async function handleCallback(req, res) {
       ).run(userId, 'gmail', profile.email, tokens.access_token, tokens.refresh_token || '', tokens.expiry_date || null);
     }
 
-    res.redirect('http://localhost:5173/settings?tab=email&connected=true');
+    const frontendBaseUrl = getFrontendBaseUrl(req);
+    res.redirect(`${frontendBaseUrl}/settings?tab=email&connected=true`);
   } catch (err) {
     console.error('OAuth callback error:', err);
-    res.redirect('http://localhost:5173/settings?tab=email&error=' + encodeURIComponent(err.message));
+    const frontendBaseUrl = getFrontendBaseUrl(req);
+    res.redirect(`${frontendBaseUrl}/settings?tab=email&error=${encodeURIComponent(err.message)}`);
   }
 }
 

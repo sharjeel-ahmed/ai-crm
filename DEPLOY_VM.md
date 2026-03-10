@@ -87,6 +87,7 @@ Set at least these values in `/var/www/pazo-crm/backend/.env`:
 PORT=3001
 JWT_SECRET=use-a-long-random-secret
 DB_PATH=./data/crm.db
+FRONTEND_BASE_URL=https://your-domain.example
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=https://your-domain.example/api/email-accounts/callback
