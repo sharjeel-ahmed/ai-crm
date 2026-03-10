@@ -84,16 +84,21 @@ export default function AIProviderForm() {
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
-          <input
-            type="password"
-            value={form.api_key}
-            onChange={(e) => setForm({ ...form, api_key: e.target.value })}
-            placeholder="Enter your API key"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+        {form.provider !== 'claude-cli' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+            <input
+              type="password"
+              value={form.api_key}
+              onChange={(e) => setForm({ ...form, api_key: e.target.value })}
+              placeholder="Enter your API key"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        )}
+        {form.provider === 'claude-cli' && (
+          <p className="text-sm text-gray-500">Uses locally authenticated Claude CLI — no API key needed.</p>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>

@@ -85,7 +85,10 @@ async function testConnection(req, res) {
   if (!provider) return res.status(400).json({ error: 'Provider is required' });
 
   const settings = db.prepare('SELECT * FROM ai_settings WHERE provider = ?').get(provider);
-  if (!settings || !settings.api_key) {
+  if (!settings) {
+    return res.status(400).json({ error: 'Provider not configured' });
+  }
+  if (provider !== 'claude-cli' && !settings.api_key) {
     return res.status(400).json({ error: 'No API key configured for this provider' });
   }
 

@@ -72,7 +72,7 @@ async function processUnprocessedEmails() {
   const db = getDb();
 
   const aiSettings = db.prepare('SELECT * FROM ai_settings WHERE is_active = 1 LIMIT 1').get();
-  if (!aiSettings || !aiSettings.api_key) {
+  if (!aiSettings || (aiSettings.provider !== 'claude-cli' && !aiSettings.api_key)) {
     return { processed: 0, reason: 'No active AI provider configured' };
   }
 
