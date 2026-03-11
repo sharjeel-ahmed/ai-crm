@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Mail, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
 import api from '../../api/client';
+import { formatDateTime } from '../../utils/dateFormat';
 import toast from 'react-hot-toast';
 
 export default function EmailAccountCard({ account, onRemoved }) {
@@ -52,7 +53,7 @@ export default function EmailAccountCard({ account, onRemoved }) {
         <div>
           <div className="font-medium text-gray-900">{account.email_address}</div>
           <div className="text-xs text-gray-500">
-            {account.last_sync_at ? `Last synced: ${new Date(account.last_sync_at).toLocaleString()}` : 'Never synced'}
+            {account.last_sync_at ? `Last synced: ${formatDateTime(account.last_sync_at)}` : 'Never synced'}
           </div>
         </div>
       </div>

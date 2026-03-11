@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { UserRound, KeyRound, Mail, Shield } from 'lucide-react';
 import api from '../api/client';
+import { formatDate } from '../utils/dateFormat';
 import { useAuth } from '../context/AuthContext';
 
 export default function ProfilePage() {
@@ -81,7 +82,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <div className="text-gray-400">Member Since</div>
-              <div className="font-medium text-gray-900">{user?.created_at ? new Date(user.created_at + 'Z').toLocaleDateString() : '—'}</div>
+              <div className="font-medium text-gray-900">{user?.created_at ? formatDate(user.created_at + 'Z') : '—'}</div>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../api/client';
 import Modal from '../components/common/Modal';
 import { Plus, Phone, Mail, Calendar, FileText, CheckSquare, Check } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDate, formatDateTime } from '../utils/dateFormat';
 import toast from 'react-hot-toast';
 
 const typeIcons = { call: Phone, email: Mail, meeting: Calendar, note: FileText, task: CheckSquare };
@@ -75,14 +75,14 @@ export default function ActivitiesPage() {
                     <h4 className={`font-medium text-gray-900 ${a.is_completed ? 'line-through' : ''}`}>{a.subject}</h4>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{a.type}</span>
                   </div>
-                  <span className="text-sm text-gray-500 whitespace-nowrap shrink-0">{format(new Date(a.created_at), 'MMM d, yyyy · h:mm a')}</span>
+                  <span className="text-sm text-gray-500 whitespace-nowrap shrink-0">{formatDateTime(a.created_at)}</span>
                 </div>
                 {a.description && <p className="text-sm text-gray-600 mt-1">{a.description}</p>}
                 <div className="flex gap-4 mt-2 text-xs text-gray-400">
                   {a.user_name && <span>{a.user_name}</span>}
                   {a.deal_title && <span>Deal: {a.deal_title}</span>}
                   {a.contact_name && <span>Contact: {a.contact_name}</span>}
-                  {a.due_date && <span>Due: {format(new Date(a.due_date), 'MMM d, yyyy')}</span>}
+                  {a.due_date && <span>Due: {formatDate(a.due_date)}</span>}
                 </div>
               </div>
               <button onClick={() => toggleComplete(a)} className={`p-1 rounded ${a.is_completed ? 'text-green-600' : 'text-gray-300 hover:text-green-500'}`}>

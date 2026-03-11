@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/client';
+import { formatDate } from '../utils/dateFormat';
 import Modal from '../components/common/Modal';
 import { Plus, Pencil, Trash2, Users, Layers, Mail, Bot, Shield, MessageSquareText, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -380,7 +381,7 @@ export default function SettingsPage() {
                     <tr key={item.id}>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.email_address}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.reason || '—'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-400">{new Date(item.created_at + 'Z').toLocaleDateString()}</td>
+                      <td className="px-6 py-4 text-sm text-gray-400">{formatDate(item.created_at + 'Z')}</td>
                       <td className="px-6 py-4 text-sm">
                         <button onClick={async () => {
                           try {

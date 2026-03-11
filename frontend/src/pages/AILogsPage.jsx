@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
+import { formatDateTime } from '../utils/dateFormat';
 import { ScrollText, Mail, MailOpen, Clock, Sparkles, Ban, ChevronDown, ChevronRight, MessageSquare, Code, EyeOff, Trash2, ChevronsRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfidenceBadge from '../components/ai/ConfidenceBadge';
@@ -137,11 +138,11 @@ export default function AILogsPage() {
                     <div className="text-xs text-gray-500 truncate">
                       {log.is_inbound ? 'From' : 'To'}: {log.from_name || log.from_address}
                       <span className="mx-2">|</span>
-                      {log.date ? new Date(log.date).toLocaleString() : ''}
+                      {log.date ? formatDateTime(log.date) : ''}
                       {log.synced_at && (
                         <>
                           <span className="mx-2">|</span>
-                          <span className="text-gray-400">Synced: {new Date(log.synced_at + 'Z').toLocaleString()}</span>
+                          <span className="text-gray-400">Synced: {formatDateTime(log.synced_at + 'Z')}</span>
                         </>
                       )}
                     </div>

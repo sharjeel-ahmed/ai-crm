@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import Modal from '../components/common/Modal';
+import { formatDate, formatDateTime } from '../utils/dateFormat';
 import { ArrowLeft, Briefcase, Building2, Users, CalendarCheck, IndianRupee, Phone, Mail as MailIcon, MailOpen, Sparkles, ChevronDown, Pencil, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -42,17 +43,6 @@ function stageAgeColor(stageChangedAt) {
   return 'text-red-500';
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function formatTime(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-}
 
 export default function DealDetailPage() {
   const { id } = useParams();
@@ -175,7 +165,7 @@ export default function DealDetailPage() {
               {deal.lead_source && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{deal.lead_source}</span>}
               {deal.partner_name && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">via {deal.partner_name}</span>}
               {deal.owner_name && <span>Owner: {deal.owner_name}</span>}
-              {deal.expected_close && <span>Close: {new Date(deal.expected_close).toLocaleDateString()}</span>}
+              {deal.expected_close && <span>Close: {formatDate(deal.expected_close)}</span>}
             </div>
           </div>
           <button onClick={openEditModal} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
@@ -251,7 +241,7 @@ export default function DealDetailPage() {
                               )}
                             </div>
                             <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap">
-                              {formatDate(a.created_at)} {formatTime(a.created_at)}
+                              {formatDateTime(a.created_at)}
                             </span>
                           </div>
                           {a.description && <div className="text-xs text-gray-500 mt-1">{a.description}</div>}

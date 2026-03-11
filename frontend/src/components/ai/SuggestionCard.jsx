@@ -1,5 +1,6 @@
 import { User, Building2, Handshake, Activity, PenLine, ArrowRightLeft, Check, X, Pencil, Newspaper } from 'lucide-react';
 import ConfidenceBadge from './ConfidenceBadge';
+import { formatDateTime } from '../../utils/dateFormat';
 
 const typeConfig = {
   create_contact: { icon: User, label: 'New Contact', color: 'text-blue-600' },
@@ -119,7 +120,7 @@ export default function SuggestionCard({ suggestion, onApprove, onEdit, onDismis
               <div className="text-xs text-gray-400 mt-1">
                 From: {suggestion.email_from_name || suggestion.email_from} | {suggestion.email_subject}
                 {suggestion.email_date && (
-                  <span className="ml-2">{new Date(suggestion.email_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} {new Date(suggestion.email_date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="ml-2">{formatDateTime(suggestion.email_date)}</span>
                 )}
               </div>
             )}
