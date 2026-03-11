@@ -254,7 +254,7 @@ Make sure the `data/` directory exists on the server first.
 The background email worker runs automatically:
 
 - **On server start** — syncs immediately
-- **Every 12 hours** — via `setInterval` in the worker
+- **Every 4 hours** — via `setInterval` in the worker
 
 Each cycle syncs Gmail for all enabled accounts, then runs the AI pipeline on unprocessed emails. The sync is incremental — it only fetches emails newer than the last sync date.
 

@@ -4,7 +4,7 @@ const { processUnprocessedEmails } = require('../ai/pipeline');
 
 let intervalId = null;
 
-function startWorker(intervalMs = 43200000) { // 12 hours default
+function startWorker(intervalMs = 14400000) { // 4 hours default
   if (intervalId) {
     console.log('Email worker already running');
     return;
