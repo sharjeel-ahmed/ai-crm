@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import DataTable from '../components/common/DataTable';
 import Modal from '../components/common/Modal';
@@ -21,6 +22,7 @@ export default function PartnersPage() {
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState(null);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const load = () => api.get('/partners').then((r) => setPartners(r.data));
   useEffect(() => { load(); }, []);
@@ -69,7 +71,11 @@ export default function PartnersPage() {
   };
 
   const columns = [
-    { key: 'name', label: 'Partner Name' },
+    { key: 'name', label: 'Partner Name', render: (row) => (
+      <button onClick={(e) => { e.stopPropagation(); navigate(`/partners/${row.id}`); }} className="text-blue-600 hover:text-blue-800 hover:underline font-medium">
+        {row.name}
+      </button>
+    )},
     { key: 'type', label: 'Type', render: (row) => (
       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${typeColors[row.type] || 'bg-gray-100 text-gray-700'}`}>
         {row.type}

@@ -17,6 +17,7 @@ import AILogsPage from './pages/AILogsPage';
 import CompanyDetailPage from './pages/CompanyDetailPage';
 import DealDetailPage from './pages/DealDetailPage';
 import PartnersPage from './pages/PartnersPage';
+import PartnerDetailPage from './pages/PartnerDetailPage';
 import ProfilePage from './pages/ProfilePage';
 import ClosedDealsPage from './pages/ClosedDealsPage';
 
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="companies" element={<CompaniesPage />} />
             <Route path="companies/:id" element={<CompanyDetailPage />} />
             <Route path="partners" element={<PartnersPage />} />
+            <Route path="partners/:id" element={<PartnerDetailPage />} />
             <Route path="activities" element={<ActivitiesPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="profile" element={<ProfilePage />} />
