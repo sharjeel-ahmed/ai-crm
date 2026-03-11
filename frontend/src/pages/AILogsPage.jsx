@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
-import { ScrollText, Mail, MailOpen, Clock, Sparkles, Ban, ChevronDown, ChevronRight, MessageSquare, Code, EyeOff, Trash2, ChevronsLeft } from 'lucide-react';
+import { ScrollText, Mail, MailOpen, Clock, Sparkles, Ban, ChevronDown, ChevronRight, MessageSquare, Code, EyeOff, Trash2, ChevronsRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfidenceBadge from '../components/ai/ConfidenceBadge';
 
@@ -73,11 +73,11 @@ export default function AILogsPage() {
     }
   };
 
-  const handleDeleteBefore = async (log) => {
-    if (!confirm(`Delete this and all older email logs? They will be re-synced on next sync.`)) return;
+  const handleDeleteFromHere = async (log) => {
+    if (!confirm(`Delete this and all newer email logs? They will be re-synced on next sync.`)) return;
     try {
-      const res = await api.delete(`/ai-logs/${log.id}/before`);
-      setLogs(prev => prev.filter(l => l.id > log.id));
+      const res = await api.delete(`/ai-logs/${log.id}/from-here`);
+      setLogs(prev => prev.filter(l => l.id < log.id));
       setTotal(prev => prev - (res.data.deleted || 1));
       toast.success(`${res.data.deleted} log(s) deleted — will re-sync next time`);
     } catch (err) {
@@ -172,11 +172,11 @@ export default function AILogsPage() {
                       <Trash2 size={14} />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteBefore(log); }}
+                      onClick={(e) => { e.stopPropagation(); handleDeleteFromHere(log); }}
                       className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                      title="Delete this and all older emails"
+                      title="Delete this and all newer emails (re-sync from here)"
                     >
-                      <ChevronsLeft size={14} />
+                      <ChevronsRight size={14} />
                     </button>
                   </div>
 

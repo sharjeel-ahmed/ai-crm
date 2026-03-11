@@ -69,16 +69,16 @@ function deleteLog(req, res) {
   res.json({ success: true });
 }
 
-function deleteBefore(req, res) {
+function deleteFromHere(req, res) {
   const db = getDb();
   const { id } = req.params;
 
   const email = db.prepare('SELECT id, email_account_id, date FROM emails WHERE id = ?').get(parseInt(id));
   if (!email) return res.status(404).json({ error: 'Email log not found' });
 
-  // Delete this email and all older emails for the same account
+  // Delete this email and all newer emails for the same account
   const toDelete = db.prepare(
-    'SELECT id FROM emails WHERE email_account_id = ? AND id <= ?'
+    'SELECT id FROM emails WHERE email_account_id = ? AND id >= ?'
   ).all(email.email_account_id, email.id);
 
   const ids = toDelete.map(e => e.id);
@@ -87,7 +87,7 @@ function deleteBefore(req, res) {
     db.prepare(`DELETE FROM emails WHERE id IN (${ids.join(',')})`).run();
   }
 
-  // Reset last_sync_at to before this email's date
+  // Reset last_sync_at to before this email's date so next sync re-fetches from this point
   if (email.date) {
     const emailDate = new Date(email.date);
     emailDate.setDate(emailDate.getDate() - 1);
@@ -102,4 +102,4 @@ function deleteBefore(req, res) {
   res.json({ success: true, deleted: ids.length });
 }
 
-module.exports = { getLogs, deleteLog, deleteBefore };
+module.exports = { getLogs, deleteLog, deleteFromHere };
