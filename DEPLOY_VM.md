@@ -225,12 +225,10 @@ To use the Claude CLI as an AI provider (instead of API keys), install and authe
 ```bash
 npm install -g @anthropic-ai/claude-code
 
-# Authenticate — this will give you a URL to open in your browser
-claude --print "hello"
+# Run claude — it will display a URL to open in your browser
+claude
 
-# Or use an API key directly
-export ANTHROPIC_API_KEY="sk-ant-..."
-echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.bashrc
+# Open the URL on any machine, complete the OAuth login, and paste the token back
 ```
 
 Verify the CLI works:
@@ -239,7 +237,7 @@ Verify the CLI works:
 echo 'Say "connected" in one word.' | claude --print --output-format text --max-turns 1
 ```
 
-Then select **Claude-CLI** as the active provider in the CRM's AI Settings page. No API key needed in the UI — it uses the local CLI authentication.
+Then select **Claude-CLI** as the active provider in the CRM's AI Settings page. No API key needed — it uses the local OAuth authentication.
 
 ## Copying the SQLite Database
 
