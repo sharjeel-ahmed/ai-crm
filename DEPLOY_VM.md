@@ -218,6 +218,59 @@ The OAuth redirect URI must exactly match:
 https://your-domain.example/api/email-accounts/callback
 ```
 
+## Claude CLI Provider Setup
+
+To use the Claude CLI as an AI provider (instead of API keys), install and authenticate it on the VM:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+
+# Authenticate — this will give you a URL to open in your browser
+claude --print "hello"
+
+# Or use an API key directly
+export ANTHROPIC_API_KEY="sk-ant-..."
+echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.bashrc
+```
+
+Verify the CLI works:
+
+```bash
+echo 'Say "connected" in one word.' | claude --print --output-format text --max-turns 1
+```
+
+Then select **Claude-CLI** as the active provider in the CRM's AI Settings page. No API key needed in the UI — it uses the local CLI authentication.
+
+## Copying the SQLite Database
+
+To copy your local database to the VM:
+
+```bash
+scp ./backend/data/crm.db user@your-server:/var/www/pazo-crm/backend/data/
+```
+
+Make sure the `data/` directory exists on the server first.
+
+## Email Sync Schedule
+
+The background email worker runs automatically:
+
+- **On server start** — syncs immediately
+- **Every 12 hours** — via `setInterval` in the worker
+
+Each cycle syncs Gmail for all enabled accounts, then runs the AI pipeline on unprocessed emails. The sync is incremental — it only fetches emails newer than the last sync date.
+
+## Process Restarts
+
+The `systemd` service file includes `Restart=always` with `RestartSec=5`, so the backend automatically restarts after a crash. No need for pm2.
+
+Check service status and logs:
+
+```bash
+sudo systemctl status pazo-crm
+journalctl -u pazo-crm -f
+```
+
 ## Optional hardening
 
 - Create a dedicated Linux user instead of using your login user
