@@ -18,6 +18,7 @@ import CompanyDetailPage from './pages/CompanyDetailPage';
 import DealDetailPage from './pages/DealDetailPage';
 import PartnersPage from './pages/PartnersPage';
 import ProfilePage from './pages/ProfilePage';
+import ClosedDealsPage from './pages/ClosedDealsPage';
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
             <Route index element={<DashboardPage />} />
             <Route path="pipeline" element={<PipelinePage />} />
             <Route path="deals" element={<DealsPage />} />
+            <Route path="deals/closed" element={<ClosedDealsPage />} />
             <Route path="deals/:id" element={<DealDetailPage />} />
             <Route path="contacts" element={<ContactsPage />} />
             <Route path="companies" element={<CompaniesPage />} />

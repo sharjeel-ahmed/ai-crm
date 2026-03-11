@@ -4,8 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import Modal from '../components/common/Modal';
 import toast from 'react-hot-toast';
-import { IndianRupee, ChevronLeft, ChevronRight, Clock, Pencil, ChevronDown, ChevronUp, Archive } from 'lucide-react';
-import { formatDate } from '../utils/dateFormat';
+import { IndianRupee, ChevronLeft, ChevronRight, Clock, Pencil, Archive } from 'lucide-react';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Website', 'Event', 'Other'];
@@ -84,14 +83,21 @@ export default function PipelinePage() {
   const [partners, setPartners] = useState([]);
   const [owners, setOwners] = useState([]);
   const [form, setForm] = useState({ title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '' });
-  const [showClosed, setShowClosed] = useState(false);
 
   const load = () => api.get('/deals/pipeline').then((r) => setPipeline(r.data));
-  const activeStages = pipeline.filter(s => !s.is_closed);
-  const closedStages = pipeline.filter(s => s.is_closed);
-  const closedDeals = closedStages.flatMap(s => s.deals.map(d => ({ ...d, stage_name: s.name })));
-  const closedTotal = closedDeals.reduce((sum, d) => sum + (d.value || 0), 0);
   useEffect(() => { load(); }, []);
+
+  // Filter Won stage to only show deals from last 30 days
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const visiblePipeline = pipeline.map(stage => {
+    if (stage.name === 'Won') {
+      return { ...stage, deals: stage.deals.filter(d => {
+        const changedAt = d.stage_changed_at || d.updated_at;
+        return changedAt && new Date(changedAt).getTime() >= thirtyDaysAgo;
+      })};
+    }
+    return stage;
+  });
 
   const openEditModal = (deal) => {
     Promise.all([
@@ -219,7 +225,16 @@ export default function PipelinePage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Pipeline</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">Pipeline</h2>
+        <button
+          onClick={() => navigate('/deals/closed')}
+          className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+        >
+          <Archive size={16} />
+          Closed Deals
+        </button>
+      </div>
       <div
         ref={topScrollRef}
         onScroll={handleTopScroll}
@@ -255,7 +270,7 @@ export default function PipelinePage() {
             onScroll={handleMainScroll}
             className="flex gap-4 overflow-x-auto pb-4"
           >
-            {activeStages.map((stage) => (
+            {visiblePipeline.map((stage) => (
               <div key={stage.id} className="flex-shrink-0 w-72">
                 <div className="bg-gray-200 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-3">
@@ -281,59 +296,6 @@ export default function PipelinePage() {
           </div>
         </DragDropContext>
       </div>
-
-      {/* Closed Deals Section */}
-      {closedDeals.length > 0 && (
-        <div className="mt-6">
-          <button
-            onClick={() => setShowClosed(!showClosed)}
-            className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 mb-3"
-          >
-            <Archive size={16} />
-            Closed Deals ({closedDeals.length})
-            <span className="text-gray-400">{fmt(closedTotal)}</span>
-            {showClosed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </button>
-          {showClosed && (
-            <div className="bg-white rounded-lg shadow border overflow-hidden">
-              <table className="w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deal</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Value</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Closed</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {closedDeals.map(deal => (
-                    <tr
-                      key={deal.id}
-                      onClick={() => navigate(`/deals/${deal.id}`)}
-                      className="hover:bg-gray-50 cursor-pointer"
-                    >
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{deal.title}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{deal.company_name || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{fmt(deal.value)}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          deal.stage_name === 'Won' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                        }`}>
-                          {deal.stage_name}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{deal.owner_name || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-400">{formatDate(deal.stage_changed_at || deal.updated_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Edit Deal Modal */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Edit Deal" size="lg">
