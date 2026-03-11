@@ -156,9 +156,17 @@ export default function DealsPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Contact</label>
-              <select value={form.contact_id} onChange={(e) => setForm({ ...form, contact_id: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select value={form.contact_id} onChange={(e) => {
+                const contactId = e.target.value;
+                const contact = contacts.find(c => String(c.id) === contactId);
+                const updates = { contact_id: contactId };
+                if (contact?.partner_id && !form.partner_id) {
+                  updates.partner_id = String(contact.partner_id);
+                }
+                setForm({ ...form, ...updates });
+              }} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">None</option>
-                {contacts.map((c) => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+                {contacts.map((c) => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}{c.partner_name ? ` (${c.partner_name})` : ''}</option>)}
               </select>
             </div>
           </div>
