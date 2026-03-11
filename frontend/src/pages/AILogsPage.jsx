@@ -42,13 +42,15 @@ export default function AILogsPage() {
   const [expanded, setExpanded] = useState(new Set());
   const [activeTab, setActiveTab] = useState({});
 
-  useEffect(() => {
+  const loadLogs = () => {
     setLoading(true);
     api.get('/ai-logs?limit=100').then(r => {
       setLogs(r.data.logs);
       setTotal(r.data.total);
     }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { loadLogs(); }, []);
 
   const toggleExpand = (id) => {
     setExpanded(prev => {
@@ -65,9 +67,8 @@ export default function AILogsPage() {
     if (!confirm('Delete this email log? It will be re-synced on next sync.')) return;
     try {
       await api.delete(`/ai-logs/${id}`);
-      setLogs(prev => prev.filter(l => l.id !== id));
-      setTotal(prev => prev - 1);
       toast.success('Log deleted — will re-sync next time');
+      loadLogs();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error deleting log');
     }
@@ -77,9 +78,8 @@ export default function AILogsPage() {
     if (!confirm(`Delete this and all newer email logs? They will be re-synced on next sync.`)) return;
     try {
       const res = await api.delete(`/ai-logs/${log.id}/from-here`);
-      setLogs(prev => prev.filter(l => l.id < log.id));
-      setTotal(prev => prev - (res.data.deleted || 1));
       toast.success(`${res.data.deleted} log(s) deleted — will re-sync next time`);
+      loadLogs();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error deleting logs');
     }

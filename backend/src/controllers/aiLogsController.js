@@ -10,7 +10,7 @@ function getLogs(req, res) {
            e.created_at as synced_at, ea.email_address as account_email
     FROM emails e
     JOIN email_accounts ea ON e.email_account_id = ea.id
-    ORDER BY e.id DESC
+    ORDER BY e.date DESC
     LIMIT ? OFFSET ?
   `).all(parseInt(limit), parseInt(offset));
 
@@ -59,7 +59,6 @@ function deleteLog(req, res) {
     emailDate.setDate(emailDate.getDate() - 1);
     const resetDate = emailDate.toISOString().replace('T', ' ').substring(0, 19);
     const account = db.prepare('SELECT last_sync_at FROM email_accounts WHERE id = ?').get(email.email_account_id);
-    // Only reset if last_sync_at is after the email date (or null)
     if (!account.last_sync_at || new Date(account.last_sync_at) > emailDate) {
       db.prepare("UPDATE email_accounts SET last_sync_at = ?, updated_at = datetime('now') WHERE id = ?")
         .run(resetDate, email.email_account_id);
@@ -76,10 +75,10 @@ function deleteFromHere(req, res) {
   const email = db.prepare('SELECT id, email_account_id, date FROM emails WHERE id = ?').get(parseInt(id));
   if (!email) return res.status(404).json({ error: 'Email log not found' });
 
-  // Delete this email and all newer emails for the same account
+  // Delete this email and all newer emails (by date) for the same account
   const toDelete = db.prepare(
-    'SELECT id FROM emails WHERE email_account_id = ? AND id >= ?'
-  ).all(email.email_account_id, email.id);
+    'SELECT id FROM emails WHERE email_account_id = ? AND date >= ?'
+  ).all(email.email_account_id, email.date);
 
   const ids = toDelete.map(e => e.id);
   if (ids.length > 0) {
