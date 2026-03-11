@@ -42,4 +42,64 @@ function getLogs(req, res) {
   res.json({ logs, total });
 }
 
-module.exports = { getLogs };
+function deleteLog(req, res) {
+  const db = getDb();
+  const { id } = req.params;
+
+  const email = db.prepare('SELECT id, email_account_id, date FROM emails WHERE id = ?').get(parseInt(id));
+  if (!email) return res.status(404).json({ error: 'Email log not found' });
+
+  // Delete suggestions linked to this email, then the email itself
+  db.prepare('DELETE FROM ai_suggestions WHERE email_id = ?').run(email.id);
+  db.prepare('DELETE FROM emails WHERE id = ?').run(email.id);
+
+  // Reset last_sync_at to before this email's date so next sync re-fetches it
+  if (email.date) {
+    const emailDate = new Date(email.date);
+    emailDate.setDate(emailDate.getDate() - 1);
+    const resetDate = emailDate.toISOString().replace('T', ' ').substring(0, 19);
+    const account = db.prepare('SELECT last_sync_at FROM email_accounts WHERE id = ?').get(email.email_account_id);
+    // Only reset if last_sync_at is after the email date (or null)
+    if (!account.last_sync_at || new Date(account.last_sync_at) > emailDate) {
+      db.prepare("UPDATE email_accounts SET last_sync_at = ?, updated_at = datetime('now') WHERE id = ?")
+        .run(resetDate, email.email_account_id);
+    }
+  }
+
+  res.json({ success: true });
+}
+
+function deleteBefore(req, res) {
+  const db = getDb();
+  const { id } = req.params;
+
+  const email = db.prepare('SELECT id, email_account_id, date FROM emails WHERE id = ?').get(parseInt(id));
+  if (!email) return res.status(404).json({ error: 'Email log not found' });
+
+  // Delete this email and all older emails for the same account
+  const toDelete = db.prepare(
+    'SELECT id FROM emails WHERE email_account_id = ? AND id <= ?'
+  ).all(email.email_account_id, email.id);
+
+  const ids = toDelete.map(e => e.id);
+  if (ids.length > 0) {
+    db.prepare(`DELETE FROM ai_suggestions WHERE email_id IN (${ids.join(',')})`).run();
+    db.prepare(`DELETE FROM emails WHERE id IN (${ids.join(',')})`).run();
+  }
+
+  // Reset last_sync_at to before this email's date
+  if (email.date) {
+    const emailDate = new Date(email.date);
+    emailDate.setDate(emailDate.getDate() - 1);
+    const resetDate = emailDate.toISOString().replace('T', ' ').substring(0, 19);
+    db.prepare("UPDATE email_accounts SET last_sync_at = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(resetDate, email.email_account_id);
+  } else {
+    db.prepare("UPDATE email_accounts SET last_sync_at = NULL, updated_at = datetime('now') WHERE id = ?")
+      .run(email.email_account_id);
+  }
+
+  res.json({ success: true, deleted: ids.length });
+}
+
+module.exports = { getLogs, deleteLog, deleteBefore };

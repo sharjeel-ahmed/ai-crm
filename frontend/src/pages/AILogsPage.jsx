@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
-import { ScrollText, Mail, MailOpen, Clock, Sparkles, Ban, ChevronDown, ChevronRight, MessageSquare, Code, EyeOff } from 'lucide-react';
+import { ScrollText, Mail, MailOpen, Clock, Sparkles, Ban, ChevronDown, ChevronRight, MessageSquare, Code, EyeOff, Trash2, ChevronsLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfidenceBadge from '../components/ai/ConfidenceBadge';
 
@@ -60,6 +60,30 @@ export default function AILogsPage() {
 
   const getTab = (id) => activeTab[id] || 'prompt';
   const setTab = (id, tab) => setActiveTab(prev => ({ ...prev, [id]: tab }));
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this email log? It will be re-synced on next sync.')) return;
+    try {
+      await api.delete(`/ai-logs/${id}`);
+      setLogs(prev => prev.filter(l => l.id !== id));
+      setTotal(prev => prev - 1);
+      toast.success('Log deleted — will re-sync next time');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error deleting log');
+    }
+  };
+
+  const handleDeleteBefore = async (log) => {
+    if (!confirm(`Delete this and all older email logs? They will be re-synced on next sync.`)) return;
+    try {
+      const res = await api.delete(`/ai-logs/${log.id}/before`);
+      setLogs(prev => prev.filter(l => l.id > log.id));
+      setTotal(prev => prev - (res.data.deleted || 1));
+      toast.success(`${res.data.deleted} log(s) deleted — will re-sync next time`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error deleting logs');
+    }
+  };
 
   return (
     <div>
@@ -123,22 +147,38 @@ export default function AILogsPage() {
                     </div>
                   </div>
 
-                  {/* Ignore button */}
-                  {log.from_address && (
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {log.from_address && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!confirm(`Add ${log.from_address} to the ignore list?`)) return;
+                          api.post('/ignore-list', { email_address: log.from_address, reason: `From AI Logs: ${log.subject || '(no subject)'}` })
+                            .then(() => toast.success(`${log.from_address} added to ignore list`))
+                            .catch(err => toast.error(err.response?.data?.error || 'Error'));
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                        title={`Ignore ${log.from_address}`}
+                      >
+                        <EyeOff size={14} />
+                      </button>
+                    )}
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!confirm(`Add ${log.from_address} to the ignore list?`)) return;
-                        api.post('/ignore-list', { email_address: log.from_address, reason: `From AI Logs: ${log.subject || '(no subject)'}` })
-                          .then(() => toast.success(`${log.from_address} added to ignore list`))
-                          .catch(err => toast.error(err.response?.data?.error || 'Error'));
-                      }}
-                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded shrink-0"
-                      title={`Ignore ${log.from_address}`}
+                      onClick={(e) => { e.stopPropagation(); handleDelete(log.id); }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                      title="Delete and re-sync this email"
                     >
-                      <EyeOff size={14} />
+                      <Trash2 size={14} />
                     </button>
-                  )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteBefore(log); }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                      title="Delete this and all older emails"
+                    >
+                      <ChevronsLeft size={14} />
+                    </button>
+                  </div>
 
                   {/* Action badge */}
                   <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium shrink-0 ${action.color}`}>
