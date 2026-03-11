@@ -366,22 +366,22 @@ export default function SettingsPage() {
               <p className="text-gray-500">No emails in the ignore list</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
+            <div className="bg-white rounded-lg shadow overflow-x-auto">
+              <table className="w-full table-fixed divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="w-1/3 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                    <th className="w-1/3 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                    <th className="w-1/5 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added</th>
+                    <th className="w-16 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {ignoreList.map(item => (
                     <tr key={item.id}>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.email_address}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{item.reason || '—'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-400">{formatDate(item.created_at + 'Z')}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900 truncate">{item.email_address}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500 truncate">{item.reason || '—'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-400 whitespace-nowrap">{formatDate(item.created_at + 'Z')}</td>
                       <td className="px-6 py-4 text-sm">
                         <button onClick={async () => {
                           try {
