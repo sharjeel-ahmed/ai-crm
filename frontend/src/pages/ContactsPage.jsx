@@ -21,6 +21,9 @@ export default function ContactsPage() {
   const [convertContact, setConvertContact] = useState(null);
   const [partnerType, setPartnerType] = useState('');
   const [partnerName, setPartnerName] = useState('');
+  const [convertMode, setConvertMode] = useState('existing'); // 'existing' or 'new'
+  const [selectedPartnerId, setSelectedPartnerId] = useState('');
+  const [partners, setPartners] = useState([]);
   const partnerTypes = ['Channel Partner', 'Outbound Partner', 'Referral Partner'];
 
   const load = () => {
@@ -83,19 +86,31 @@ export default function ContactsPage() {
 
   const handleConvertToPartner = async (e) => {
     e.preventDefault();
-    if (!convertContact || !partnerType) return;
+    if (!convertContact) return;
     try {
-      await api.post('/partners', {
-        name: partnerName,
-        type: partnerType,
-        contact_name: `${convertContact.first_name} ${convertContact.last_name}`,
-        email: convertContact.email || '',
-        phone: convertContact.phone || '',
-      });
-      toast.success('Contact converted to partner');
+      let partnerId;
+      if (convertMode === 'existing') {
+        if (!selectedPartnerId) return;
+        partnerId = selectedPartnerId;
+      } else {
+        if (!partnerType || !partnerName) return;
+        const res = await api.post('/partners', {
+          name: partnerName,
+          type: partnerType,
+          contact_name: `${convertContact.first_name} ${convertContact.last_name}`,
+          email: convertContact.email || '',
+          phone: convertContact.phone || '',
+        });
+        partnerId = res.data.id;
+      }
+      // Link contact to partner
+      await api.put(`/contacts/${convertContact.id}`, { partner_id: partnerId });
+      toast.success(convertMode === 'existing' ? 'Contact linked to partner' : 'Contact converted to partner');
       setConvertModalOpen(false);
       setConvertContact(null);
       setPartnerType('');
+      setSelectedPartnerId('');
+      load();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error');
     }
@@ -117,7 +132,7 @@ export default function ContactsPage() {
       render: (row) => (
         <div className="flex gap-2">
           <button onClick={(e) => { e.stopPropagation(); handleEdit(row); }} className="text-blue-600 hover:text-blue-800" title="Edit"><Pencil size={16} /></button>
-          <button onClick={(e) => { e.stopPropagation(); setConvertContact(row); setPartnerType(''); setPartnerName(row.company_name || `${row.first_name} ${row.last_name}`); setConvertModalOpen(true); }} className="text-indigo-600 hover:text-indigo-800" title="Convert to Partner"><Handshake size={16} /></button>
+          <button onClick={(e) => { e.stopPropagation(); setConvertContact(row); setPartnerType(''); setPartnerName(row.company_name || `${row.first_name} ${row.last_name}`); setSelectedPartnerId(''); setConvertMode('existing'); api.get('/partners').then(r => setPartners(r.data)); setConvertModalOpen(true); }} className="text-indigo-600 hover:text-indigo-800" title="Convert to Partner"><Handshake size={16} /></button>
           {row.email && (
             <button onClick={(e) => { e.stopPropagation(); handleIgnore(row); }} className="text-gray-500 hover:text-gray-700" title="Add to ignore list"><EyeOff size={16} /></button>
           )}
@@ -175,27 +190,55 @@ export default function ContactsPage() {
           </div>
         </form>
       </Modal>
-      <Modal isOpen={convertModalOpen} onClose={() => setConvertModalOpen(false)} title="Convert to Partner">
+      <Modal isOpen={convertModalOpen} onClose={() => setConvertModalOpen(false)} title="Link to Partner">
         {convertContact && (
           <form onSubmit={handleConvertToPartner} className="space-y-4">
             <p className="text-sm text-gray-600">
-              Convert <span className="font-medium text-gray-900">{convertContact.first_name} {convertContact.last_name}</span>
-              {convertContact.company_name ? ` (${convertContact.company_name})` : ''} into a partner.
+              Link <span className="font-medium text-gray-900">{convertContact.first_name} {convertContact.last_name}</span>
+              {convertContact.company_name ? ` (${convertContact.company_name})` : ''} to a partner.
             </p>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Partner Name</label>
-              <input type="text" value={partnerName} onChange={(e) => setPartnerName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+
+            {/* Mode toggle */}
+            <div className="flex gap-1">
+              <button type="button" onClick={() => setConvertMode('existing')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-lg ${convertMode === 'existing' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                Existing Partner
+              </button>
+              <button type="button" onClick={() => setConvertMode('new')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-lg ${convertMode === 'new' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                New Partner
+              </button>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Partner Type</label>
-              <select value={partnerType} onChange={(e) => setPartnerType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                <option value="">Select Type</option>
-                {partnerTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
+
+            {convertMode === 'existing' ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Select Partner</label>
+                <select value={selectedPartnerId} onChange={(e) => setSelectedPartnerId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                  <option value="">Choose a partner...</option>
+                  {partners.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.type})</option>)}
+                </select>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Partner Name</label>
+                  <input type="text" value={partnerName} onChange={(e) => setPartnerName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Partner Type</label>
+                  <select value={partnerType} onChange={(e) => setPartnerType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <option value="">Select Type</option>
+                    {partnerTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+
             <div className="flex justify-end gap-3 pt-4">
               <button type="button" onClick={() => setConvertModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Convert</button>
+              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                {convertMode === 'existing' ? 'Link' : 'Create & Link'}
+              </button>
             </div>
           </form>
         )}

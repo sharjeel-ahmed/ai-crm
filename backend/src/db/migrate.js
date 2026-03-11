@@ -19,6 +19,7 @@ function runMigrations() {
   };
   addColumn('deals', 'stage_changed_at', 'TEXT');
   addColumn('deals', 'partner_id', 'INTEGER REFERENCES partners(id)');
+  addColumn('contacts', 'partner_id', 'INTEGER REFERENCES partners(id)');
 
   // Backfill stage_changed_at for deals that don't have it set
   db.exec(`

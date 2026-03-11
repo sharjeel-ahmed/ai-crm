@@ -11,10 +11,11 @@ function getAll(req, res) {
   const db = getDb();
   const scope = scopeQuery(req);
   const contacts = db.prepare(`
-    SELECT ct.*, c.name as company_name, u.name as owner_name
+    SELECT ct.*, c.name as company_name, u.name as owner_name, p.name as partner_name
     FROM contacts ct
     LEFT JOIN companies c ON ct.company_id = c.id
     LEFT JOIN users u ON ct.owner_id = u.id
+    LEFT JOIN partners p ON ct.partner_id = p.id
     WHERE 1=1 ${scope.where}
     ORDER BY ct.last_name, ct.first_name
   `).all(...scope.params);
@@ -51,18 +52,19 @@ function create(req, res) {
 }
 
 function update(req, res) {
-  const { first_name, last_name, email, phone, job_title, company_id, owner_id } = req.body;
+  const { first_name, last_name, email, phone, job_title, company_id, owner_id, partner_id } = req.body;
   const db = getDb();
   const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
   if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
-  db.prepare(`UPDATE contacts SET first_name = ?, last_name = ?, email = ?, phone = ?, job_title = ?, company_id = ?, owner_id = ?, updated_at = datetime('now') WHERE id = ?`)
+  db.prepare(`UPDATE contacts SET first_name = ?, last_name = ?, email = ?, phone = ?, job_title = ?, company_id = ?, owner_id = ?, partner_id = ?, updated_at = datetime('now') WHERE id = ?`)
     .run(
       first_name || contact.first_name, last_name || contact.last_name,
       email !== undefined ? email : contact.email, phone !== undefined ? phone : contact.phone,
       job_title !== undefined ? job_title : contact.job_title,
       company_id !== undefined ? company_id : contact.company_id,
       owner_id !== undefined ? owner_id : contact.owner_id,
+      partner_id !== undefined ? (partner_id || null) : contact.partner_id,
       req.params.id
     );
   const updated = db.prepare(`
