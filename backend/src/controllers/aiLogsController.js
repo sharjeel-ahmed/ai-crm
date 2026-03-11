@@ -4,17 +4,24 @@ function getLogs(req, res) {
   const db = getDb();
   const { limit = 50, offset = 0 } = req.query;
 
-  const emails = db.prepare(`
+  const allEmails = db.prepare(`
     SELECT e.id, e.subject, e.from_address, e.from_name, e.to_addresses, e.date, e.is_inbound, e.ai_processed,
            e.ai_prompt, e.ai_response,
            e.created_at as synced_at, ea.email_address as account_email
     FROM emails e
     JOIN email_accounts ea ON e.email_account_id = ea.id
-    ORDER BY e.date DESC
-    LIMIT ? OFFSET ?
-  `).all(parseInt(limit), parseInt(offset));
+  `).all();
 
-  const total = db.prepare('SELECT COUNT(*) as c FROM emails').get().c;
+  const total = allEmails.length;
+
+  // Sort by parsed date descending (Gmail date headers can't be sorted as text in SQLite)
+  allEmails.sort((a, b) => {
+    const da = a.date ? new Date(a.date).getTime() : 0;
+    const db2 = b.date ? new Date(b.date).getTime() : 0;
+    return db2 - da;
+  });
+
+  const emails = allEmails.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
 
   // Get suggestions for each email
   const stmtSuggestions = db.prepare(
