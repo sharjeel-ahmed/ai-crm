@@ -14,7 +14,7 @@ function checkAutoApprove(suggestionId) {
     // Get email date so activities reflect when the email was sent
     const email = suggestion.email_id ? db.prepare('SELECT date FROM emails WHERE id = ?').get(suggestion.email_id) : null;
     // Use user_id 1 (admin) as the system user for auto-approved actions
-    const entityResult = applySuggestion(db, suggestion.type, data, 1, email?.date);
+    const entityResult = applySuggestion(db, suggestion.type, data, 1, email?.date, suggestion.email_id);
 
     db.prepare(
       "UPDATE ai_suggestions SET status = 'auto_approved', created_entity_type = ?, created_entity_id = ?, updated_at = datetime('now') WHERE id = ?"

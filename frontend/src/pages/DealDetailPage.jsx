@@ -5,6 +5,7 @@ import Modal from '../components/common/Modal';
 import { formatDate, formatDateTime } from '../utils/dateFormat';
 import { ArrowLeft, Briefcase, Building2, Users, CalendarCheck, IndianRupee, Phone, Mail as MailIcon, MailOpen, Sparkles, ChevronDown, Pencil, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
+import DealSentimentBadge from '../components/deals/DealSentimentBadge';
 
 const stageColors = {
   Lead: 'bg-gray-100 text-gray-700',
@@ -154,6 +155,7 @@ export default function DealDetailPage() {
                   <Clock size={13} />{stageAge(deal.stage_changed_at)} in stage
                 </span>
               )}
+              <DealSentimentBadge sentiment={deal.sentiment} />
             </div>
             <div className="flex items-center gap-4 text-sm text-gray-500 mt-0.5">
               {deal.value > 0 && <span className="flex items-center gap-1 font-semibold text-green-600"><IndianRupee size={14} /> {fmt(deal.value)}</span>}
@@ -230,7 +232,7 @@ export default function DealDetailPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className="font-medium text-sm text-gray-900 truncate">{a.subject}</span>
+                              <span className="font-medium text-sm text-gray-700 truncate">{a.subject}</span>
                               {a.ai_generated ? (
                                 <Sparkles size={12} className="text-blue-400 shrink-0" title="AI generated" />
                               ) : null}
@@ -244,7 +246,7 @@ export default function DealDetailPage() {
                               {formatDateTime(a.created_at)}
                             </span>
                           </div>
-                          {a.description && <div className="text-xs text-gray-500 mt-1">{a.description}</div>}
+                          {a.description && <div className="text-xs text-black mt-1">{a.description}</div>}
                           <div className="flex gap-3 mt-1 text-xs text-gray-400">
                             {!isEmail && <span className="capitalize">{a.type}</span>}
                             {a.user_name && !isEmail && <span>by {a.user_name}</span>}

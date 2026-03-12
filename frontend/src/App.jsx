@@ -20,15 +20,18 @@ import PartnersPage from './pages/PartnersPage';
 import PartnerDetailPage from './pages/PartnerDetailPage';
 import ProfilePage from './pages/ProfilePage';
 import ClosedDealsPage from './pages/ClosedDealsPage';
+import MarketingPage from './pages/MarketingPage';
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/" element={<MarketingPage />} />
+          <Route path="/marketing" element={<Navigate to="/" replace />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-            <Route index element={<DashboardPage />} />
+            <Route path="dashboard" element={<DashboardPage />} />
             <Route path="pipeline" element={<PipelinePage />} />
             <Route path="deals" element={<DealsPage />} />
             <Route path="deals/closed" element={<ClosedDealsPage />} />

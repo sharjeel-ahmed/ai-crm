@@ -27,12 +27,14 @@ async function extract(email, apiKey, model) {
           const parsed = JSON.parse(data);
           if (parsed.error) return reject(new Error(parsed.error.message));
           const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+          let sentiment = { label: 'neutral', confidence: 0, reasoning: 'No sentiment returned' };
           let suggestions = [];
           if (text) {
             const result = JSON.parse(text);
+            sentiment = result.sentiment || sentiment;
             suggestions = result.suggestions || [];
           }
-          resolve({ suggestions, rawResponse: data });
+          resolve({ sentiment, suggestions, rawResponse: data });
         } catch (e) {
           reject(new Error('Failed to parse Gemini response'));
         }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { Archive, ArrowLeft, IndianRupee } from 'lucide-react';
 import { formatDate } from '../utils/dateFormat';
+import DealSentimentBadge from '../components/deals/DealSentimentBadge';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 
@@ -91,6 +92,7 @@ export default function ClosedDealsPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Value</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sentiment</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lead Source</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Closed</th>
               </tr>
@@ -113,6 +115,7 @@ export default function ClosedDealsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500">{deal.owner_name || '—'}</td>
+                  <td className="px-4 py-3 text-sm"><DealSentimentBadge sentiment={deal.sentiment} /></td>
                   <td className="px-4 py-3 text-sm text-gray-500">{deal.lead_source || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap">{formatDate(deal.stage_changed_at || deal.updated_at)}</td>
                 </tr>

@@ -34,8 +34,9 @@ async function extract(email, apiKey, model) {
           const parsed = JSON.parse(data);
           if (parsed.error) return reject(new Error(parsed.error.message));
           const toolUse = parsed.content?.find(c => c.type === 'tool_use');
+          const sentiment = toolUse?.input?.sentiment || { label: 'neutral', confidence: 0, reasoning: 'No sentiment returned' };
           const suggestions = toolUse?.input?.suggestions || [];
-          resolve({ suggestions, rawResponse: data });
+          resolve({ sentiment, suggestions, rawResponse: data });
         } catch (e) {
           reject(new Error('Failed to parse Claude response'));
         }

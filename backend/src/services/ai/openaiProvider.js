@@ -33,12 +33,14 @@ async function extract(email, apiKey, model) {
           const parsed = JSON.parse(data);
           if (parsed.error) return reject(new Error(parsed.error.message));
           const content = parsed.choices?.[0]?.message?.content;
+          let sentiment = { label: 'neutral', confidence: 0, reasoning: 'No sentiment returned' };
           let suggestions = [];
           if (content) {
             const result = JSON.parse(content);
+            sentiment = result.sentiment || sentiment;
             suggestions = result.suggestions || [];
           }
-          resolve({ suggestions, rawResponse: data });
+          resolve({ sentiment, suggestions, rawResponse: data });
         } catch (e) {
           reject(new Error('Failed to parse OpenAI response'));
         }

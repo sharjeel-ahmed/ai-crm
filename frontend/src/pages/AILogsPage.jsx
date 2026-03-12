@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
 import { formatDateTime } from '../utils/dateFormat';
-import { ScrollText, Mail, MailOpen, Clock, Sparkles, Ban, ChevronDown, ChevronRight, MessageSquare, Code, EyeOff, Trash2, ChevronsRight } from 'lucide-react';
+import { ScrollText, Mail, MailOpen, Clock, Sparkles, Ban, ChevronDown, ChevronRight, MessageSquare, Code, EyeOff, Trash2, ChevronsRight, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfidenceBadge from '../components/ai/ConfidenceBadge';
 
@@ -40,6 +40,7 @@ export default function AILogsPage() {
   const [logs, setLogs] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [expanded, setExpanded] = useState(new Set());
   const [activeTab, setActiveTab] = useState({});
 
@@ -86,12 +87,61 @@ export default function AILogsPage() {
     }
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const accountsRes = await api.get('/email-accounts');
+      const accounts = accountsRes.data || [];
+
+      if (accounts.length === 0) {
+        toast.error('No connected email accounts found');
+        return;
+      }
+
+      const results = await Promise.all(
+        accounts.map((account) =>
+          api.post(`/email-accounts/${account.id}/sync`)
+            .then((res) => ({ ok: true, synced: res.data?.synced || 0 }))
+            .catch((err) => ({ ok: false, error: err.response?.data?.error || 'Sync failed' }))
+        )
+      );
+
+      const successCount = results.filter((r) => r.ok).length;
+      const totalSynced = results.reduce((sum, r) => sum + (r.ok ? r.synced : 0), 0);
+
+      if (successCount === 0) {
+        toast.error(results[0]?.error || 'Sync failed');
+        return;
+      }
+
+      if (successCount < accounts.length) {
+        toast.success(`Synced ${totalSynced} email(s) across ${successCount}/${accounts.length} account(s)`);
+      } else {
+        toast.success(`Synced ${totalSynced} email(s)`);
+      }
+
+      loadLogs();
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div>
-      <div className="flex items-center gap-2 mb-6">
-        <ScrollText size={24} className="text-blue-600" />
-        <h2 className="text-2xl font-bold text-gray-900">AI Logs</h2>
-        <span className="text-sm text-gray-500 ml-2">{total} emails processed</span>
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <ScrollText size={24} className="text-blue-600" />
+          <h2 className="text-2xl font-bold text-gray-900">AI Logs</h2>
+          <span className="text-sm text-gray-500 ml-2">{total} emails processed</span>
+        </div>
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Syncing...' : 'Sync'}
+        </button>
       </div>
 
       {loading ? (

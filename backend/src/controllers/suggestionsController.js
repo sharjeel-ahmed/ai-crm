@@ -1,5 +1,90 @@
 const { getDb } = require('../db/connection');
 
+function normalizeEmailAddress(value) {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  const match = trimmed.match(/<([^>]+)>/);
+  return (match ? match[1] : trimmed).trim().toLowerCase() || null;
+}
+
+function parseEmailArray(value) {
+  if (!value) return [];
+
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      parsed = value.split(',');
+    }
+  }
+
+  const values = Array.isArray(parsed) ? parsed : [parsed];
+  return values
+    .map(normalizeEmailAddress)
+    .filter(Boolean);
+}
+
+function getActiveUserByEmail(db, email) {
+  const normalizedEmail = normalizeEmailAddress(email);
+  if (!normalizedEmail) return null;
+
+  return db.prepare(`
+    SELECT u.id, u.name, u.email, u.role
+    FROM users u
+    LEFT JOIN email_accounts ea
+      ON ea.user_id = u.id
+     AND LOWER(ea.email_address) = ?
+    WHERE u.is_active = 1
+      AND (LOWER(u.email) = ? OR ea.id IS NOT NULL)
+    ORDER BY CASE WHEN LOWER(u.email) = ? THEN 0 ELSE 1 END, u.id
+    LIMIT 1
+  `).get(normalizedEmail, normalizedEmail, normalizedEmail);
+}
+
+function getOwnerById(db, ownerId) {
+  if (!ownerId) return null;
+  return db.prepare('SELECT id, name, email, role FROM users WHERE id = ? AND is_active = 1').get(ownerId);
+}
+
+function resolveDealOwnerId(db, emailId, fallbackOwnerId) {
+  const fallbackOwner = getOwnerById(db, fallbackOwnerId);
+  if (!emailId) return fallbackOwner?.id || fallbackOwnerId;
+
+  const email = db.prepare(`
+    SELECT e.from_address, e.to_addresses, ea.user_id AS mailbox_user_id
+    FROM emails e
+    LEFT JOIN email_accounts ea ON ea.id = e.email_account_id
+    WHERE e.id = ?
+  `).get(emailId);
+
+  if (!email) return fallbackOwner?.id || fallbackOwnerId;
+
+  const candidateUserIds = [];
+  const seen = new Set();
+
+  const addCandidate = (userId) => {
+    if (!userId || seen.has(userId)) return;
+    const owner = getOwnerById(db, userId);
+    if (!owner) return;
+    seen.add(userId);
+    candidateUserIds.push(userId);
+  };
+
+  addCandidate(getActiveUserByEmail(db, email.from_address)?.id);
+  addCandidate(email.mailbox_user_id);
+
+  for (const address of parseEmailArray(email.to_addresses)) {
+    addCandidate(getActiveUserByEmail(db, address)?.id);
+  }
+
+  if (candidateUserIds.length > 0) {
+    return candidateUserIds[0];
+  }
+
+  return fallbackOwner?.id || fallbackOwnerId;
+}
+
 function getAll(req, res) {
   const db = getDb();
   const { status, type, min_confidence, max_confidence, limit = 50, offset = 0 } = req.query;
@@ -62,7 +147,7 @@ function approve(req, res) {
   const data = JSON.parse(suggestion.data);
   // Get email date so activities reflect when the email was sent
   const email = suggestion.email_id ? db.prepare('SELECT date FROM emails WHERE id = ?').get(suggestion.email_id) : null;
-  const entityResult = applySuggestion(db, suggestion.type, data, req.user.id, email?.date);
+  const entityResult = applySuggestion(db, suggestion.type, data, req.user.id, email?.date, suggestion.email_id);
 
   db.prepare(
     "UPDATE ai_suggestions SET status = 'approved', resolved_by = ?, created_entity_type = ?, created_entity_id = ?, updated_at = datetime('now') WHERE id = ?"
@@ -84,7 +169,7 @@ function approveWithEdits(req, res) {
   db.prepare("UPDATE ai_suggestions SET data = ? WHERE id = ?").run(JSON.stringify(editedData), id);
 
   const email = suggestion.email_id ? db.prepare('SELECT date FROM emails WHERE id = ?').get(suggestion.email_id) : null;
-  const entityResult = applySuggestion(db, suggestion.type, editedData, req.user.id, email?.date);
+  const entityResult = applySuggestion(db, suggestion.type, editedData, req.user.id, email?.date, suggestion.email_id);
 
   db.prepare(
     "UPDATE ai_suggestions SET status = 'approved', resolved_by = ?, created_entity_type = ?, created_entity_id = ?, updated_at = datetime('now') WHERE id = ?"
@@ -120,7 +205,7 @@ function bulkApprove(req, res) {
 
     const data = JSON.parse(suggestion.data);
     const email = suggestion.email_id ? db.prepare('SELECT date FROM emails WHERE id = ?').get(suggestion.email_id) : null;
-    const entityResult = applySuggestion(db, suggestion.type, data, req.user.id, email?.date);
+    const entityResult = applySuggestion(db, suggestion.type, data, req.user.id, email?.date, suggestion.email_id);
 
     db.prepare(
       "UPDATE ai_suggestions SET status = 'approved', resolved_by = ?, created_entity_type = ?, created_entity_id = ?, updated_at = datetime('now') WHERE id = ?"
@@ -165,7 +250,7 @@ function findOrCreateCompany(db, companyName, data, userId) {
   return findOrCreate();
 }
 
-function applySuggestion(db, type, data, userId, emailDate) {
+function applySuggestion(db, type, data, userId, emailDate, emailId) {
   // Use email date for activity timestamps so timeline reflects when things actually happened
   const tsValue = emailDate || new Date().toISOString().replace('T', ' ').substring(0, 19);
   switch (type) {
@@ -242,9 +327,10 @@ function applySuggestion(db, type, data, userId, emailDate) {
           const partner = db.prepare('SELECT id FROM partners WHERE LOWER(name) = LOWER(?)').get(data.partner_name);
           if (partner) partnerId = partner.id;
         }
+        const ownerId = resolveDealOwnerId(db, emailId, userId);
         const result = db.prepare(
           "INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, lead_source, partner_id, ai_generated, notes, created_at, updated_at, stage_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'), ?)"
-        ).run(data.title || '', data.value || 0, stageId, companyId, contactId, userId, data.lead_source || 'ai_email', partnerId, data.notes || '', tsValue);
+        ).run(data.title || '', data.value || 0, stageId, companyId, contactId, ownerId, data.lead_source || 'ai_email', partnerId, data.notes || '', tsValue);
 
         // Log deal creation activity
         const stageName = db.prepare('SELECT name FROM deal_stages WHERE id = ?').get(stageId)?.name || 'Unknown';

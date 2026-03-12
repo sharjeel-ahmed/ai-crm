@@ -19,6 +19,8 @@ function runMigrations() {
   };
   addColumn('deals', 'stage_changed_at', 'TEXT');
   addColumn('deals', 'partner_id', 'INTEGER REFERENCES partners(id)');
+  addColumn('deals', 'sentiment', "TEXT NOT NULL DEFAULT 'neutral' CHECK (sentiment IN ('positive', 'negative', 'neutral'))");
+  addColumn('deals', 'sentiment_updated_at', 'TEXT');
   addColumn('contacts', 'partner_id', 'INTEGER REFERENCES partners(id)');
 
   // Backfill stage_changed_at for deals that don't have it set

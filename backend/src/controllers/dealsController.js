@@ -1,4 +1,5 @@
 const { getDb } = require('../db/connection');
+const { refreshDealSentiment } = require('../services/deals/sentiment');
 
 function scopeQuery(req) {
   if (req.user.role === 'sales_rep') {
@@ -56,7 +57,7 @@ function getAll(req, res) {
     LEFT JOIN partners p ON d.partner_id = p.id
     WHERE 1=1 ${scope.where}
     ORDER BY d.created_at DESC
-  `).all(...scope.params);
+  `).all(...scope.params).map((deal) => refreshDealSentiment(db, deal));
   res.json(deals);
 }
 
@@ -76,7 +77,7 @@ function getPipeline(req, res) {
     LEFT JOIN partners p ON d.partner_id = p.id
     WHERE 1=1 ${scope.where}
     ORDER BY d.position
-  `).all(...scope.params);
+  `).all(...scope.params).map((deal) => refreshDealSentiment(db, deal));
 
   const pipeline = stages.map(stage => ({
     ...stage,
@@ -87,7 +88,7 @@ function getPipeline(req, res) {
 
 function getById(req, res) {
   const db = getDb();
-  const deal = db.prepare(`
+  const dealRow = db.prepare(`
     SELECT d.*, ds.name as stage_name, c.name as company_name,
       ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
       p.name as partner_name
@@ -99,7 +100,8 @@ function getById(req, res) {
     LEFT JOIN partners p ON d.partner_id = p.id
     WHERE d.id = ?
   `).get(req.params.id);
-  if (!deal) return res.status(404).json({ error: 'Deal not found' });
+  if (!dealRow) return res.status(404).json({ error: 'Deal not found' });
+  const deal = refreshDealSentiment(db, dealRow);
 
   // Get contacts linked to the same company
   const contacts = deal.company_id
@@ -218,13 +220,14 @@ function create(req, res) {
     LEFT JOIN partners p ON d.partner_id = p.id
     WHERE d.id = ?
   `).get(result.lastInsertRowid);
+  const sentimentDeal = refreshDealSentiment(db, deal);
 
   // Log deal creation activity
   db.prepare(
     "INSERT INTO activities (type, subject, description, deal_id, user_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, datetime('now'), datetime('now'))"
   ).run(`Deal created`, `Deal "${title}" created in stage ${deal.stage_name}${deal.company_name ? ` for ${deal.company_name}` : ''}`, deal.id, req.user.id);
 
-  res.status(201).json(deal);
+  res.status(201).json(sentimentDeal);
 }
 
 function update(req, res) {
@@ -263,7 +266,7 @@ function update(req, res) {
     LEFT JOIN users u ON d.owner_id = u.id
     LEFT JOIN partners p ON d.partner_id = p.id WHERE d.id = ?
   `).get(req.params.id);
-  res.json(updated);
+  res.json(refreshDealSentiment(db, updated));
 }
 
 function updateStage(req, res) {

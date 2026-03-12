@@ -48,7 +48,7 @@ function extractJSON(text) {
   }
 
   // Try finding JSON object in text
-  const jsonMatch = text.match(/\{[\s\S]*"suggestions"[\s\S]*\}/);
+  const jsonMatch = text.match(/\{[\s\S]*"sentiment"[\s\S]*"suggestions"[\s\S]*\}/);
   if (jsonMatch) {
     try { return JSON.parse(jsonMatch[0]); } catch (e) {}
   }
@@ -59,12 +59,13 @@ function extractJSON(text) {
 async function extract(email, apiKey, model) {
   const systemPrompt = getSystemPrompt();
   const userPrompt = buildUserPrompt(email);
-  const fullPrompt = `${systemPrompt}\n\nIMPORTANT: Respond ONLY with a valid JSON object containing a "suggestions" array. No markdown, no code fences, no explanation — just raw JSON.\n\n${userPrompt}`;
+  const fullPrompt = `${systemPrompt}\n\nIMPORTANT: Respond ONLY with a valid JSON object containing top-level "sentiment" and "suggestions" fields. No markdown, no code fences, no explanation — just raw JSON.\n\n${userPrompt}`;
 
   const output = await runClaude(fullPrompt);
   const parsed = extractJSON(output);
+  const sentiment = (parsed && parsed.sentiment) ? parsed.sentiment : { label: 'neutral', confidence: 0, reasoning: 'No sentiment returned' };
   const suggestions = (parsed && Array.isArray(parsed.suggestions)) ? parsed.suggestions : [];
-  return { suggestions, rawResponse: output };
+  return { sentiment, suggestions, rawResponse: output };
 }
 
 async function test(apiKey, model) {

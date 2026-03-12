@@ -2,6 +2,29 @@ const { getDb } = require('../../db/connection');
 const { extractFromEmail } = require('./provider');
 const { checkAutoApprove } = require('./autoApprove');
 
+function normalizeEmailAddress(value) {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  const match = trimmed.match(/<([^>]+)>/);
+  return (match ? match[1] : trimmed).trim().toLowerCase() || null;
+}
+
+function parseEmailArray(value) {
+  if (!value) return [];
+
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      parsed = value.split(',');
+    }
+  }
+
+  const values = Array.isArray(parsed) ? parsed : [parsed];
+  return values.map(normalizeEmailAddress).filter(Boolean);
+}
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -10,9 +33,20 @@ async function processOneEmail(email, aiSettings) {
   const db = getDb();
   try {
     const result = await extractFromEmail(email, aiSettings.provider, aiSettings.api_key, aiSettings.model);
-    const { suggestions, prompt, rawResponse } = result;
+    const { sentiment, suggestions, prompt, rawResponse } = result;
 
-    db.prepare('UPDATE emails SET ai_prompt = ?, ai_response = ? WHERE id = ?').run(prompt, rawResponse, email.id);
+    db.prepare(`
+      UPDATE emails
+      SET ai_prompt = ?, ai_response = ?, ai_sentiment = ?, ai_sentiment_confidence = ?, ai_sentiment_reasoning = ?
+      WHERE id = ?
+    `).run(
+      prompt,
+      rawResponse,
+      sentiment?.label || 'neutral',
+      sentiment?.confidence ?? 0,
+      sentiment?.reasoning || null,
+      email.id
+    );
 
     for (const suggestion of suggestions) {
       // Handle newsletter detection: auto-add to ignore list if confidence >= 85%
@@ -90,13 +124,10 @@ async function processUnprocessedEmails() {
     const ignoreList = db.prepare('SELECT LOWER(email_address) as email FROM email_ignore_list').all().map(r => r.email);
     const emails = [];
     for (const email of allEmails) {
-      const from = (email.from_address || '').toLowerCase();
-      let toAddresses = [];
-      try { toAddresses = JSON.parse(email.to_addresses || '[]'); } catch {}
-      const toEmails = (Array.isArray(toAddresses) ? toAddresses : [toAddresses])
-        .map(a => { const m = a.match(/<(.+?)>/); return (m ? m[1] : a).toLowerCase().trim(); });
+      const from = normalizeEmailAddress(email.from_address);
+      const toEmails = parseEmailArray(email.to_addresses);
 
-      const isIgnored = ignoreList.some(ignored => from.includes(ignored) || toEmails.some(t => t.includes(ignored)));
+      const isIgnored = ignoreList.some(ignored => from === ignored || toEmails.includes(ignored));
       if (isIgnored) {
         db.prepare('UPDATE emails SET ai_processed = 1 WHERE id = ?').run(email.id);
       } else {

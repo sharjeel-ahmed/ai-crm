@@ -16,7 +16,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
       toast.success('Welcome back!');
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Login failed');
     } finally {
@@ -60,7 +60,6 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-        <p className="text-xs text-gray-400 mt-4 text-center">Default: admin@pazo.com / admin123</p>
       </div>
     </div>
   );

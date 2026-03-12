@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
   { to: '/deals', icon: List, label: 'Deals' },
   { to: '/contacts', icon: Users, label: 'Contacts' },
@@ -50,7 +50,7 @@ export default function Sidebar() {
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === '/'}
+              end={item.to === '/dashboard'}
               title={collapsed ? item.label : undefined}
               className={({ isActive }) =>
                 `flex items-center ${collapsed ? 'justify-center' : ''} gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${

@@ -5,6 +5,7 @@ import Modal from '../components/common/Modal';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import DealSentimentBadge from '../components/deals/DealSentimentBadge';
 
 const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Website', 'Event', 'Other'];
 const emptyForm = { title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '' };
@@ -94,6 +95,7 @@ export default function DealsPage() {
     )},
     { key: 'value', label: 'Value', render: (row) => fmt(row.value) },
     { key: 'stage_name', label: 'Stage' },
+    { key: 'sentiment', label: 'Sentiment', render: (row) => <DealSentimentBadge sentiment={row.sentiment} /> },
     { key: 'company_name', label: 'Company', render: (row) => row.company_id ? (
       <button onClick={(e) => { e.stopPropagation(); navigate(`/companies/${row.company_id}`); }} className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer">
         {row.company_name}

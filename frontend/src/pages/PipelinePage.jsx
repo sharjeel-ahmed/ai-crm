@@ -5,6 +5,7 @@ import api from '../api/client';
 import Modal from '../components/common/Modal';
 import toast from 'react-hot-toast';
 import { IndianRupee, ChevronLeft, ChevronRight, Clock, Pencil, Archive } from 'lucide-react';
+import DealSentimentBadge from '../components/deals/DealSentimentBadge';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Website', 'Event', 'Other'];
@@ -47,6 +48,9 @@ function DealCard({ deal, index, onClickDeal, onEditDeal }) {
             >
               <Pencil size={13} />
             </button>
+          </div>
+          <div className="mt-2">
+            <DealSentimentBadge sentiment={deal.sentiment} />
           </div>
           {deal.company_name && <p className="text-xs text-gray-500 mt-1">{deal.company_name}</p>}
           <div className="flex items-center justify-between mt-2">
