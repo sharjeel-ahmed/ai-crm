@@ -15,7 +15,7 @@ export default function ClosedDealsPage() {
 
   useEffect(() => {
     setLoading(true);
-    api.get('/deals/pipeline').then(r => {
+    api.get('/deals/pipeline?include_closed=1').then(r => {
       const closed = r.data
         .filter(s => s.is_closed)
         .flatMap(s => s.deals.map(d => ({ ...d, stage_name: s.name })));

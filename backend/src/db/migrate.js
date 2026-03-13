@@ -21,7 +21,18 @@ function runMigrations() {
   addColumn('deals', 'partner_id', 'INTEGER REFERENCES partners(id)');
   addColumn('deals', 'sentiment', "TEXT NOT NULL DEFAULT 'neutral' CHECK (sentiment IN ('positive', 'negative', 'neutral'))");
   addColumn('deals', 'sentiment_updated_at', 'TEXT');
+  addColumn('deals', 'lifecycle_state', "TEXT NOT NULL DEFAULT 'active' CHECK (lifecycle_state IN ('active', 'closed'))");
+  addColumn('deals', 'closed_at', 'TEXT');
   addColumn('contacts', 'partner_id', 'INTEGER REFERENCES partners(id)');
+  addColumn('deal_stages', 'win_probability', 'REAL');
+
+  // Seed default win_probability values
+  const stagesToSeed = db.prepare('SELECT id, name, is_closed FROM deal_stages WHERE win_probability IS NULL').all();
+  const probDefaults = { 'Lead': 10, 'Qualified': 25, 'Proposal': 50, 'Negotiation': 75, 'Won': 100, 'Lost': 0 };
+  for (const stage of stagesToSeed) {
+    const prob = probDefaults[stage.name] !== undefined ? probDefaults[stage.name] : (stage.is_closed ? 0 : 50);
+    db.prepare('UPDATE deal_stages SET win_probability = ? WHERE id = ?').run(prob, stage.id);
+  }
 
   // Backfill stage_changed_at for deals that don't have it set
   db.exec(`

@@ -1,5 +1,6 @@
 const { getDb } = require('../db/connection');
 const { refreshDealSentiment } = require('../services/deals/sentiment');
+const { syncDealLifecycleStates, includeClosed, activeDealClause } = require('../services/deals/lifecycle');
 
 function scopeQuery(req) {
   if (req.user.role === 'sales_rep') {
@@ -44,7 +45,9 @@ function getOwners(req, res) {
 
 function getAll(req, res) {
   const db = getDb();
+  syncDealLifecycleStates(db);
   const scope = scopeQuery(req);
+  const lifecycleClause = includeClosed(req) ? '' : ` ${activeDealClause('d')}`;
   const deals = db.prepare(`
     SELECT d.*, ds.name as stage_name, c.name as company_name,
       ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
@@ -55,7 +58,7 @@ function getAll(req, res) {
     LEFT JOIN contacts ct ON d.contact_id = ct.id
     LEFT JOIN users u ON d.owner_id = u.id
     LEFT JOIN partners p ON d.partner_id = p.id
-    WHERE 1=1 ${scope.where}
+    WHERE 1=1 ${scope.where}${lifecycleClause}
     ORDER BY d.created_at DESC
   `).all(...scope.params).map((deal) => refreshDealSentiment(db, deal));
   res.json(deals);
@@ -63,8 +66,10 @@ function getAll(req, res) {
 
 function getPipeline(req, res) {
   const db = getDb();
+  syncDealLifecycleStates(db);
   const scope = scopeQuery(req);
   const stages = db.prepare('SELECT * FROM deal_stages ORDER BY display_order').all();
+  const lifecycleClause = includeClosed(req) ? '' : ` ${activeDealClause('d')}`;
   const deals = db.prepare(`
     SELECT d.*, ds.name as stage_name, c.name as company_name,
       ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
@@ -75,7 +80,7 @@ function getPipeline(req, res) {
     LEFT JOIN contacts ct ON d.contact_id = ct.id
     LEFT JOIN users u ON d.owner_id = u.id
     LEFT JOIN partners p ON d.partner_id = p.id
-    WHERE 1=1 ${scope.where}
+    WHERE 1=1 ${scope.where}${lifecycleClause}
     ORDER BY d.position
   `).all(...scope.params).map((deal) => refreshDealSentiment(db, deal));
 
@@ -88,6 +93,7 @@ function getPipeline(req, res) {
 
 function getById(req, res) {
   const db = getDb();
+  syncDealLifecycleStates(db);
   const dealRow = db.prepare(`
     SELECT d.*, ds.name as stage_name, c.name as company_name,
       ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
@@ -281,7 +287,7 @@ function updateStage(req, res) {
   const newStage = db.prepare('SELECT name FROM deal_stages WHERE id = ?').get(stage_id);
 
   const stageChanged = deal.stage_id !== stage_id;
-  db.prepare(`UPDATE deals SET stage_id = ?, position = ?, updated_at = datetime('now')${stageChanged ? ", stage_changed_at = datetime('now')" : ''} WHERE id = ?`)
+  db.prepare(`UPDATE deals SET stage_id = ?, position = ?, updated_at = datetime('now'), lifecycle_state = 'active', closed_at = NULL${stageChanged ? ", stage_changed_at = datetime('now')" : ''} WHERE id = ?`)
     .run(stage_id, position !== undefined ? position : 0, req.params.id);
 
   // Log stage movement activity

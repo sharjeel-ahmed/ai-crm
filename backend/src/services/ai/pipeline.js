@@ -29,6 +29,36 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function getEmailTimestamp(email) {
+  const parsedDate = email?.date ? new Date(email.date).getTime() : NaN;
+  if (!Number.isNaN(parsedDate) && Number.isFinite(parsedDate)) return parsedDate;
+
+  const createdAt = email?.created_at ? new Date(email.created_at).getTime() : NaN;
+  if (!Number.isNaN(createdAt) && Number.isFinite(createdAt)) return createdAt;
+
+  return 0;
+}
+
+function sortEmailsChronologically(emails) {
+  return [...emails].sort((a, b) => {
+    const diff = getEmailTimestamp(a) - getEmailTimestamp(b);
+    if (diff !== 0) return diff;
+    return a.id - b.id;
+  });
+}
+
+function buildThreadQueues(emails) {
+  const queues = new Map();
+
+  for (const email of sortEmailsChronologically(emails)) {
+    const key = email.gmail_thread_id || `email-${email.id}`;
+    if (!queues.has(key)) queues.set(key, []);
+    queues.get(key).push(email);
+  }
+
+  return [...queues.values()];
+}
+
 async function processOneEmail(email, aiSettings) {
   const db = getDb();
   try {
@@ -117,7 +147,7 @@ async function processUnprocessedEmails() {
 
   // Loop until all unprocessed emails are done
   while (true) {
-    const allEmails = db.prepare('SELECT * FROM emails WHERE ai_processed = 0 ORDER BY date ASC LIMIT ?').all(CHUNK_SIZE);
+    const allEmails = db.prepare('SELECT * FROM emails WHERE ai_processed = 0 LIMIT ?').all(CHUNK_SIZE);
     if (allEmails.length === 0) break;
 
     // Filter out ignored email addresses
@@ -137,14 +167,25 @@ async function processUnprocessedEmails() {
 
     if (emails.length === 0) continue;
 
-    console.log(`AI pipeline: ${emails.length} emails to process (5 concurrent)`);
+    const threadQueues = buildThreadQueues(emails);
+    console.log(`AI pipeline: ${emails.length} emails to process in chronological thread order (${threadQueues.length} thread groups)`);
 
     let processed = 0;
     let errors = 0;
-    let stopped = false;
 
-    for (let i = 0; i < emails.length; i += BATCH_SIZE) {
-      const batch = emails.slice(i, i + BATCH_SIZE);
+    let batchNumber = 0;
+    while (true) {
+      const batch = [];
+      for (const queue of threadQueues) {
+        if (queue.length > 0) {
+          batch.push(queue.shift());
+        }
+        if (batch.length === BATCH_SIZE) break;
+      }
+
+      if (batch.length === 0) break;
+
+      batchNumber += 1;
       const results = await Promise.all(batch.map(email => processOneEmail(email, aiSettings)));
 
       for (const r of results) {
@@ -156,9 +197,9 @@ async function processUnprocessedEmails() {
         else errors++;
       }
 
-      console.log(`AI pipeline: batch ${Math.floor(i / BATCH_SIZE) + 1} done (${processed} processed, ${errors} errors)`);
+      console.log(`AI pipeline: batch ${batchNumber} done (${processed} processed, ${errors} errors)`);
 
-      if (i + BATCH_SIZE < emails.length) {
+      if (threadQueues.some((queue) => queue.length > 0)) {
         await sleep(1000);
       }
     }

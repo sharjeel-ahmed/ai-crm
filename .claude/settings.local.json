@@ -21,7 +21,10 @@
       "Bash(\"/c/Program Files \\(x86\\)/Microsoft/Edge/Application/msedge.exe\":*)",
       "Bash(gh auth:*)",
       "Bash(where gh:*)",
-      "Bash(export:*)"
+      "Bash(export:*)",
+      "Bash(git rm:*)",
+      "Bash(git:*)",
+      "Bash(cd /c/Users/Sharjeel/Projects/ai-crm/frontend && npx eslint src/pages/DashboardPage.jsx 2>&1 | head -30)"
     ]
   }
 }
