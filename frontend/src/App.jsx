@@ -20,6 +20,7 @@ import PartnersPage from './pages/PartnersPage';
 import PartnerDetailPage from './pages/PartnerDetailPage';
 import ProfilePage from './pages/ProfilePage';
 import ClosedDealsPage from './pages/ClosedDealsPage';
+import FunnelDashboardPage from './pages/FunnelDashboardPage';
 import MarketingPage from './pages/MarketingPage';
 
 export default function App() {
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="partners" element={<PartnersPage />} />
             <Route path="partners/:id" element={<PartnerDetailPage />} />
             <Route path="activities" element={<ActivitiesPage />} />
+            <Route path="funnel" element={<FunnelDashboardPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="ai-inbox" element={<ProtectedRoute roles={['admin']}><AIInboxPage /></ProtectedRoute>} />

@@ -556,57 +556,6 @@ function dashboard(req, res) {
     WHERE ds.name = 'Won'${ownerClause}
   `).get(...ownerParams);
 
-  // --- Closing soon (next 30 days) ---
-  const closingSoon = db.prepare(`
-    SELECT d.id, d.title, d.value, d.expected_close,
-           ds.name AS stage_name, c.name AS company_name, u.name AS owner_name,
-           COALESCE(ds.win_probability, 50) AS win_probability
-    FROM deals d
-    JOIN deal_stages ds ON ds.id = d.stage_id
-    LEFT JOIN companies c ON c.id = d.company_id
-    LEFT JOIN users u ON u.id = d.owner_id
-    WHERE ds.is_closed = 0
-      AND ${activeDealFilter}
-      AND d.expected_close IS NOT NULL
-      AND d.expected_close >= date('now')
-      AND d.expected_close <= date('now', '+30 days')
-      ${ownerClause}
-    ORDER BY d.expected_close ASC
-    LIMIT 10
-  `).all(...ownerParams);
-
-  // --- Stage-to-stage conversion rates ---
-  const stageCounts = db.prepare(`
-    SELECT ds.name AS stage, ds.display_order, ds.is_closed, COUNT(d.id) AS deal_count
-    FROM deal_stages ds
-    LEFT JOIN deals d ON d.stage_id = ds.id AND ${activeDealFilter}
-      ${ownerClause ? 'AND d.owner_id = ?' : ''}
-    GROUP BY ds.id
-    ORDER BY ds.display_order
-  `).all(...ownerParams);
-
-  // Build conversion funnel: only open stages + Won
-  const funnelStages = stageCounts.filter(s => !s.is_closed || s.stage === 'Won');
-  // Cumulative: deals that "entered" stage N = deals in stage N + all deals in later stages
-  let cumulative = 0;
-  const funnelWithCumulative = [];
-  for (let i = funnelStages.length - 1; i >= 0; i--) {
-    cumulative += funnelStages[i].deal_count;
-    funnelWithCumulative.unshift({ stage: funnelStages[i].stage, deal_count: funnelStages[i].deal_count, entered: cumulative });
-  }
-  const conversionRates = [];
-  for (let i = 0; i < funnelWithCumulative.length - 1; i++) {
-    const from = funnelWithCumulative[i];
-    const to = funnelWithCumulative[i + 1];
-    conversionRates.push({
-      from: from.stage,
-      to: to.stage,
-      from_count: from.entered,
-      to_count: to.entered,
-      rate: from.entered > 0 ? Math.round((to.entered / from.entered) * 100) : 0,
-    });
-  }
-
   const closedOutcomes = recentWon.count + recentLost.count;
   const winRateLast30 = closedOutcomes > 0 ? (recentWon.count / closedOutcomes) * 100 : 0;
 
@@ -650,9 +599,230 @@ function dashboard(req, res) {
     repLeaderboard,
     attention,
     recentActivities,
-    closingSoon,
-    conversionRates,
   });
 }
 
-module.exports = { dashboard, getSummary, pipelineValue, repPerformance, dealAging, attention };
+function funnelDashboard(req, res) {
+  const db = getDb();
+  syncDealLifecycleStates(db);
+  const ownerClause = req.user.role === 'sales_rep' ? ' AND d.owner_id = ?' : '';
+  const ownerParams = req.user.role === 'sales_rep' ? [req.user.id] : [];
+  const activeDealFilter = `COALESCE(d.lifecycle_state, 'active') != 'closed'`;
+
+  // --- 1. Forecast by month (expected close dates) ---
+  const forecastByMonth = db.prepare(`
+    SELECT
+      strftime('%Y-%m', d.expected_close) AS month,
+      COUNT(*) AS deal_count,
+      COALESCE(SUM(d.value), 0) AS raw_value,
+      COALESCE(SUM(d.value * COALESCE(ds.win_probability, 50) / 100.0), 0) AS weighted_value
+    FROM deals d
+    JOIN deal_stages ds ON ds.id = d.stage_id
+    WHERE ds.is_closed = 0
+      AND ${activeDealFilter}
+      AND d.expected_close IS NOT NULL
+      AND d.expected_close >= date('now', '-1 month')
+      ${ownerClause}
+    GROUP BY month
+    ORDER BY month
+    LIMIT 6
+  `).all(...ownerParams).map(r => ({ ...r, weighted_value: Math.round(r.weighted_value) }));
+
+  const closingSoon = db.prepare(`
+    SELECT d.id, d.title, d.value, d.expected_close,
+           ds.name AS stage_name, c.name AS company_name, u.name AS owner_name,
+           COALESCE(ds.win_probability, 50) AS win_probability
+    FROM deals d
+    JOIN deal_stages ds ON ds.id = d.stage_id
+    LEFT JOIN companies c ON c.id = d.company_id
+    LEFT JOIN users u ON u.id = d.owner_id
+    WHERE ds.is_closed = 0
+      AND ${activeDealFilter}
+      AND d.expected_close IS NOT NULL
+      AND d.expected_close >= date('now')
+      AND d.expected_close <= date('now', '+30 days')
+      ${ownerClause}
+    ORDER BY d.expected_close ASC
+    LIMIT 15
+  `).all(...ownerParams);
+
+  // --- 2. Stage conversion funnel ---
+  const stageCounts = db.prepare(`
+    SELECT ds.name AS stage, ds.display_order, ds.is_closed, COUNT(d.id) AS deal_count
+    FROM deal_stages ds
+    LEFT JOIN deals d ON d.stage_id = ds.id AND ${activeDealFilter}
+      ${ownerClause ? 'AND d.owner_id = ?' : ''}
+    GROUP BY ds.id
+    ORDER BY ds.display_order
+  `).all(...ownerParams);
+
+  const funnelStages = stageCounts.filter(s => !s.is_closed || s.stage === 'Won');
+  let cumulative = 0;
+  const funnelWithCumulative = [];
+  for (let i = funnelStages.length - 1; i >= 0; i--) {
+    cumulative += funnelStages[i].deal_count;
+    funnelWithCumulative.unshift({ stage: funnelStages[i].stage, deal_count: funnelStages[i].deal_count, entered: cumulative });
+  }
+  const conversionRates = [];
+  for (let i = 0; i < funnelWithCumulative.length - 1; i++) {
+    const from = funnelWithCumulative[i];
+    const to = funnelWithCumulative[i + 1];
+    conversionRates.push({
+      from: from.stage, to: to.stage,
+      from_count: from.entered, to_count: to.entered,
+      rate: from.entered > 0 ? Math.round((to.entered / from.entered) * 100) : 0,
+    });
+  }
+
+  // --- 3. Lead source conversion rates ---
+  const leadSourceConversion = db.prepare(`
+    SELECT
+      COALESCE(NULLIF(TRIM(d.lead_source), ''), 'Unknown') AS source,
+      COUNT(*) AS total_deals,
+      SUM(CASE WHEN ds.name = 'Won' THEN 1 ELSE 0 END) AS won_deals,
+      SUM(CASE WHEN ds.name = 'Lost' THEN 1 ELSE 0 END) AS lost_deals,
+      SUM(CASE WHEN ds.is_closed = 0 THEN 1 ELSE 0 END) AS open_deals,
+      COALESCE(SUM(d.value), 0) AS total_value,
+      COALESCE(SUM(CASE WHEN ds.name = 'Won' THEN d.value ELSE 0 END), 0) AS won_value
+    FROM deals d
+    JOIN deal_stages ds ON ds.id = d.stage_id
+    WHERE 1=1 ${ownerClause}
+    GROUP BY source
+    ORDER BY total_deals DESC
+  `).all(...ownerParams).map(r => ({
+    ...r,
+    win_rate: (r.won_deals + r.lost_deals) > 0 ? Math.round((r.won_deals / (r.won_deals + r.lost_deals)) * 100) : null,
+  }));
+
+  // --- 4. Lost deal breakdown ---
+  const lostSummary = db.prepare(`
+    SELECT COUNT(*) AS total_lost, COALESCE(SUM(d.value), 0) AS total_lost_value,
+           COALESCE(AVG(julianday(COALESCE(d.stage_changed_at, d.updated_at)) - julianday(d.created_at)), 0) AS avg_days_to_loss
+    FROM deals d
+    JOIN deal_stages ds ON ds.id = d.stage_id
+    WHERE ds.name = 'Lost' ${ownerClause}
+  `).get(...ownerParams);
+
+  const lostByRep = db.prepare(`
+    SELECT u.name, COUNT(*) AS lost_count, COALESCE(SUM(d.value), 0) AS lost_value
+    FROM deals d
+    JOIN deal_stages ds ON ds.id = d.stage_id
+    LEFT JOIN users u ON u.id = d.owner_id
+    WHERE ds.name = 'Lost' ${ownerClause}
+    GROUP BY d.owner_id
+    ORDER BY lost_value DESC
+  `).all(...ownerParams);
+
+  const recentLostDeals = db.prepare(`
+    SELECT d.id, d.title, d.value, d.created_at, d.stage_changed_at,
+           c.name AS company_name, u.name AS owner_name,
+           ROUND(julianday(COALESCE(d.stage_changed_at, d.updated_at)) - julianday(d.created_at)) AS days_to_loss
+    FROM deals d
+    JOIN deal_stages ds ON ds.id = d.stage_id
+    LEFT JOIN companies c ON c.id = d.company_id
+    LEFT JOIN users u ON u.id = d.owner_id
+    WHERE ds.name = 'Lost' ${ownerClause}
+    ORDER BY COALESCE(d.stage_changed_at, d.updated_at) DESC
+    LIMIT 10
+  `).all(...ownerParams);
+
+  // Lost deals by value band
+  const lostByValue = db.prepare(`
+    SELECT
+      CASE
+        WHEN d.value < 50000 THEN 'Under 50K'
+        WHEN d.value < 200000 THEN '50K - 2L'
+        WHEN d.value < 500000 THEN '2L - 5L'
+        ELSE '5L+'
+      END AS band,
+      COUNT(*) AS count,
+      COALESCE(SUM(d.value), 0) AS value
+    FROM deals d
+    JOIN deal_stages ds ON ds.id = d.stage_id
+    WHERE ds.name = 'Lost' ${ownerClause}
+    GROUP BY band
+    ORDER BY MIN(d.value)
+  `).all(...ownerParams);
+
+  // --- 5. Quota/target tracking ---
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const targets = db.prepare(`
+    SELECT t.id, t.user_id, t.period, t.target_value, u.name
+    FROM targets t
+    JOIN users u ON u.id = t.user_id
+    WHERE t.period = ?
+    ORDER BY u.name
+  `).all(currentMonth);
+
+  // Get actual won values per rep for current month
+  const monthStart = `${currentMonth}-01`;
+  const repActuals = db.prepare(`
+    SELECT d.owner_id AS user_id, COALESCE(SUM(d.value), 0) AS won_value, COUNT(*) AS won_count
+    FROM deals d
+    JOIN deal_stages ds ON ds.id = d.stage_id
+    WHERE ds.name = 'Won'
+      AND COALESCE(d.stage_changed_at, d.updated_at, d.created_at) >= ?
+      ${ownerClause}
+    GROUP BY d.owner_id
+  `).all(monthStart, ...ownerParams);
+
+  const actualsMap = {};
+  for (const r of repActuals) actualsMap[r.user_id] = r;
+
+  const quotaTracking = targets.map(t => {
+    const actual = actualsMap[t.user_id] || { won_value: 0, won_count: 0 };
+    return {
+      user_id: t.user_id,
+      name: t.name,
+      period: t.period,
+      target: t.target_value,
+      actual: actual.won_value,
+      won_count: actual.won_count,
+      attainment: t.target_value > 0 ? Math.round((actual.won_value / t.target_value) * 100) : 0,
+    };
+  });
+
+  res.json({
+    forecastByMonth,
+    closingSoon,
+    conversionRates,
+    funnelStages: funnelWithCumulative,
+    leadSourceConversion,
+    lostDeals: {
+      summary: { ...lostSummary, avg_days_to_loss: Math.round(lostSummary.avg_days_to_loss || 0) },
+      byRep: lostByRep,
+      byValue: lostByValue,
+      recent: recentLostDeals,
+    },
+    quotaTracking,
+    currentMonth,
+  });
+}
+
+function getTargets(req, res) {
+  const db = getDb();
+  const period = req.query.period || new Date().toISOString().slice(0, 7);
+  const targets = db.prepare(`
+    SELECT t.*, u.name
+    FROM targets t
+    JOIN users u ON u.id = t.user_id
+    WHERE t.period = ?
+    ORDER BY u.name
+  `).all(period);
+  res.json(targets);
+}
+
+function setTarget(req, res) {
+  const { user_id, period, target_value } = req.body;
+  if (!user_id || !period || target_value === undefined) {
+    return res.status(400).json({ error: 'user_id, period, and target_value are required' });
+  }
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO targets (user_id, period, target_value) VALUES (?, ?, ?)
+    ON CONFLICT(user_id, period) DO UPDATE SET target_value = ?, updated_at = datetime('now')
+  `).run(user_id, period, target_value, target_value);
+  res.json({ message: 'Target saved' });
+}
+
+module.exports = { dashboard, funnelDashboard, getSummary, pipelineValue, repPerformance, dealAging, attention, getTargets, setTarget };

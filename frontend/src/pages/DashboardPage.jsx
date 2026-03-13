@@ -3,9 +3,7 @@ import {
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
-  Calendar,
   Clock3,
-  Filter,
   Gauge,
   IndianRupee,
   KanbanSquare,
@@ -97,7 +95,7 @@ export default function DashboardPage() {
     return <div className="rounded-[2rem] border border-stone-200 bg-white p-12 text-center text-stone-500">Loading dashboard...</div>;
   }
 
-  const { snapshot, movement, stageHealth, leadSources, repLeaderboard, attention, recentActivities, avgSalesCycleDays, closingSoon, conversionRates } = data;
+  const { snapshot, movement, stageHealth, leadSources, repLeaderboard, attention, recentActivities, avgSalesCycleDays } = data;
 
   return (
     <div className="space-y-6">
@@ -292,79 +290,6 @@ export default function DashboardPage() {
                   <span>{fmt(deal.value)}</span>
                   <span>{deal.days_in_stage} days in stage</span>
                   <span>{deal.no_recent_activity ? 'No activity in 7 days' : `Last activity ${formatDate(deal.last_activity_at)}`}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        {/* Closing Soon */}
-        <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
-          <SectionTitle
-            icon={Calendar}
-            iconTone="bg-orange-50 text-orange-700"
-            title="Closing This Month"
-            text="Deals with expected close dates in the next 30 days — pressure-test the forecast."
-          />
-          <div className="mt-5 space-y-3">
-            {(!closingSoon || closingSoon.length === 0) ? (
-              <div className="rounded-2xl border border-dashed border-stone-200 p-6 text-sm text-stone-500">
-                No deals have expected close dates in the next 30 days. Consider setting close dates on active deals.
-              </div>
-            ) : closingSoon.map((deal) => (
-              <div key={deal.id} className="rounded-2xl border border-stone-200 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-stone-900">{deal.title}</div>
-                    <div className="mt-1 text-xs text-stone-500">
-                      {deal.company_name || 'No company'} &bull; {deal.owner_name || 'Unassigned'} &bull; {deal.stage_name}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-stone-950">{fmt(deal.value)}</div>
-                    <div className="text-xs text-stone-500">{deal.win_probability}% prob</div>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center justify-between text-xs text-stone-600">
-                  <span>Closes {formatDate(deal.expected_close)}</span>
-                  <span className="font-medium text-teal-700">Weighted: {fmt(deal.value * deal.win_probability / 100)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Conversion Funnel */}
-        <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
-          <SectionTitle
-            icon={Filter}
-            iconTone="bg-indigo-50 text-indigo-700"
-            title="Stage Conversion Rates"
-            text="How deals flow through the pipeline — spot bottlenecks where conversion drops."
-          />
-          <div className="mt-5 space-y-4">
-            {(!conversionRates || conversionRates.length === 0) ? (
-              <div className="rounded-2xl border border-dashed border-stone-200 p-6 text-sm text-stone-500">Not enough stage data to show conversion rates.</div>
-            ) : conversionRates.map((step) => (
-              <div key={`${step.from}-${step.to}`}>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-stone-800">{step.from} &rarr; {step.to}</span>
-                  <span className={`font-semibold ${step.rate >= 50 ? 'text-emerald-700' : step.rate >= 25 ? 'text-amber-700' : 'text-rose-700'}`}>
-                    {step.rate}%
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center gap-3 text-xs text-stone-500">
-                  <span>{step.from_count} entered</span>
-                  <span>&rarr;</span>
-                  <span>{step.to_count} progressed</span>
-                </div>
-                <div className="mt-2 h-3 overflow-hidden rounded-full bg-stone-100">
-                  <div
-                    className={`h-full rounded-full ${step.rate >= 50 ? 'bg-emerald-500' : step.rate >= 25 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                    style={{ width: `${Math.max(4, step.rate)}%` }}
-                  />
                 </div>
               </div>
             ))}

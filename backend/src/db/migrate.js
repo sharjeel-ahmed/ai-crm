@@ -34,6 +34,19 @@ function runMigrations() {
     db.prepare('UPDATE deal_stages SET win_probability = ? WHERE id = ?').run(prob, stage.id);
   }
 
+  // Targets table for quota tracking
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS targets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      period TEXT NOT NULL,
+      target_value REAL NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, period)
+    )
+  `);
+
   // Backfill stage_changed_at for deals that don't have it set
   db.exec(`
     UPDATE deals SET stage_changed_at = COALESCE(

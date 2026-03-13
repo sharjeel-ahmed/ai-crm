@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, Kanban, List, Users, Building2, Handshake,
   CalendarCheck, BarChart3, Settings, LogOut, Sparkles, ScrollText,
-  PanelLeftClose, PanelLeftOpen, UserRound
+  PanelLeftClose, PanelLeftOpen, UserRound, Filter
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -11,6 +11,7 @@ const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/funnel', icon: Filter, label: 'Funnel' },
   { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
   { to: '/deals', icon: List, label: 'Deals' },
   { to: '/contacts', icon: Users, label: 'Contacts' },
