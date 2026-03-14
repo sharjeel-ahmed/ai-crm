@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pazo CRM API Documentation</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --get: #16a34a;
+    --post: #2563eb;
+    --put: #d97706;
+    --patch: #7c3aed;
+    --delete: #dc2626;
+    --code-bg: #1e293b;
+    --code-text: #e2e8f0;
+    --sidebar-w: 280px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--code-bg);
+    color: var(--code-text);
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+    padding: 24px 0;
+    z-index: 100;
+  }
+
+  .sidebar-logo {
+    padding: 0 24px 24px;
+    border-bottom: 1px solid #334155;
+    margin-bottom: 16px;
+  }
+
+  .sidebar-logo h1 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .sidebar-logo span {
+    font-size: 12px;
+    color: #94a3b8;
+    display: block;
+    margin-top: 4px;
+  }
+
+  .nav-group {
+    margin-bottom: 8px;
+  }
+
+  .nav-group-title {
+    padding: 8px 24px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 24px;
+    color: #cbd5e1;
+    text-decoration: none;
+    font-size: 13px;
+    transition: background 0.15s;
+  }
+
+  .nav-link:hover { background: #334155; color: #fff; }
+
+  .method-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .method-dot.get { background: var(--get); }
+  .method-dot.post { background: var(--post); }
+  .method-dot.put { background: var(--put); }
+  .method-dot.patch { background: var(--patch); }
+  .method-dot.delete { background: var(--delete); }
+
+  /* Main */
+  .main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    padding: 40px 48px;
+    max-width: 960px;
+  }
+
+  .hero {
+    margin-bottom: 48px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hero h1 {
+    font-size: 32px;
+    font-weight: 800;
+    margin-bottom: 12px;
+  }
+
+  .hero p {
+    font-size: 16px;
+    color: var(--text-muted);
+    max-width: 640px;
+  }
+
+  /* Info boxes */
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0 40px;
+  }
+
+  .info-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+  }
+
+  .info-box h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .info-box p, .info-box code {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .info-box code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', Consolas, monospace;
+    color: var(--text);
+  }
+
+  /* Section */
+  .section {
+    margin-bottom: 56px;
+  }
+
+  .section-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    padding-top: 16px;
+  }
+
+  .section-desc {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  /* Endpoint card */
+  .endpoint {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .endpoint-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .endpoint-header:hover { background: #f8fafc; }
+
+  .method-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: 'SF Mono', Consolas, monospace;
+    color: #fff;
+    min-width: 60px;
+    text-align: center;
+  }
+
+  .method-badge.get { background: var(--get); }
+  .method-badge.post { background: var(--post); }
+  .method-badge.put { background: var(--put); }
+  .method-badge.patch { background: var(--patch); }
+  .method-badge.delete { background: var(--delete); }
+
+  .endpoint-path {
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 14px;
+    font-weight: 600;
+    flex: 1;
+  }
+
+  .endpoint-summary {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .auth-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: #fef3c7;
+    color: #92400e;
+    white-space: nowrap;
+  }
+
+  .auth-badge.api-key {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .endpoint-body {
+    display: none;
+    padding: 0 20px 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  .endpoint.open .endpoint-body { display: block; padding-top: 16px; }
+
+  .endpoint-body h4 {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin: 16px 0 8px;
+  }
+
+  .endpoint-body h4:first-child { margin-top: 0; }
+
+  .param-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .param-table th {
+    text-align: left;
+    font-weight: 600;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .param-table td {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .param-name {
+    font-family: 'SF Mono', Consolas, monospace;
+    font-weight: 600;
+    color: var(--primary);
+  }
+
+  .param-type {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .param-required {
+    color: var(--delete);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .param-optional {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 13px;
+    font-family: 'SF Mono', Consolas, monospace;
+    line-height: 1.5;
+  }
+
+  .response-note {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 8px;
+  }
+
+  /* Toggle arrow */
+  .toggle-arrow {
+    transition: transform 0.2s;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .endpoint.open .toggle-arrow { transform: rotate(90deg); }
+
+  /* Rate limit box */
+  .rate-limit-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 8px;
+  }
+  .rate-limit-table td {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .rate-limit-table td:first-child {
+    font-weight: 600;
+    width: 200px;
+  }
+
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; padding: 24px; }
+    .info-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar Navigation -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <h1>Pazo CRM</h1>
+    <span>API Documentation v1</span>
+    <a href="/api/docs/postman" style="display:inline-block;margin-top:12px;padding:6px 14px;background:#2563eb;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">Download Postman Collection</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Getting Started</div>
+    <a href="#overview" class="nav-link">Overview</a>
+    <a href="#authentication" class="nav-link">Authentication</a>
+    <a href="#rate-limiting" class="nav-link">Rate Limiting</a>
+    <a href="#errors" class="nav-link">Error Handling</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">API Key Management</div>
+    <a href="#ep-create-key" class="nav-link"><span class="method-dot post"></span>Create API Key</a>
+    <a href="#ep-list-keys" class="nav-link"><span class="method-dot get"></span>List API Keys</a>
+    <a href="#ep-revoke-key" class="nav-link"><span class="method-dot delete"></span>Revoke API Key</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Auth</div>
+    <a href="#ep-login" class="nav-link"><span class="method-dot post"></span>Login</a>
+    <a href="#ep-me" class="nav-link"><span class="method-dot get"></span>Get Current User</a>
+    <a href="#ep-update-me" class="nav-link"><span class="method-dot put"></span>Update Profile</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Contacts</div>
+    <a href="#ep-list-contacts" class="nav-link"><span class="method-dot get"></span>List Contacts</a>
+    <a href="#ep-get-contact" class="nav-link"><span class="method-dot get"></span>Get Contact</a>
+    <a href="#ep-create-contact" class="nav-link"><span class="method-dot post"></span>Create Contact</a>
+    <a href="#ep-update-contact" class="nav-link"><span class="method-dot put"></span>Update Contact</a>
+    <a href="#ep-delete-contact" class="nav-link"><span class="method-dot delete"></span>Delete Contact</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Companies</div>
+    <a href="#ep-list-companies" class="nav-link"><span class="method-dot get"></span>List Companies</a>
+    <a href="#ep-get-company" class="nav-link"><span class="method-dot get"></span>Get Company</a>
+    <a href="#ep-create-company" class="nav-link"><span class="method-dot post"></span>Create Company</a>
+    <a href="#ep-update-company" class="nav-link"><span class="method-dot put"></span>Update Company</a>
+    <a href="#ep-delete-company" class="nav-link"><span class="method-dot delete"></span>Delete Company</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Deals</div>
+    <a href="#ep-list-deals" class="nav-link"><span class="method-dot get"></span>List Deals</a>
+    <a href="#ep-get-deal" class="nav-link"><span class="method-dot get"></span>Get Deal</a>
+    <a href="#ep-get-pipeline" class="nav-link"><span class="method-dot get"></span>Pipeline View</a>
+    <a href="#ep-create-deal" class="nav-link"><span class="method-dot post"></span>Create Deal</a>
+    <a href="#ep-update-deal" class="nav-link"><span class="method-dot put"></span>Update Deal</a>
+    <a href="#ep-move-stage" class="nav-link"><span class="method-dot patch"></span>Move Stage</a>
+    <a href="#ep-delete-deal" class="nav-link"><span class="method-dot delete"></span>Delete Deal</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Activities</div>
+    <a href="#ep-list-activities" class="nav-link"><span class="method-dot get"></span>List Activities</a>
+    <a href="#ep-get-activity" class="nav-link"><span class="method-dot get"></span>Get Activity</a>
+    <a href="#ep-create-activity" class="nav-link"><span class="method-dot post"></span>Create Activity</a>
+    <a href="#ep-update-activity" class="nav-link"><span class="method-dot put"></span>Update Activity</a>
+    <a href="#ep-delete-activity" class="nav-link"><span class="method-dot delete"></span>Delete Activity</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Stages</div>
+    <a href="#ep-list-stages" class="nav-link"><span class="method-dot get"></span>List Stages</a>
+    <a href="#ep-create-stage" class="nav-link"><span class="method-dot post"></span>Create Stage</a>
+    <a href="#ep-update-stage" class="nav-link"><span class="method-dot put"></span>Update Stage</a>
+    <a href="#ep-delete-stage" class="nav-link"><span class="method-dot delete"></span>Delete Stage</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Partners</div>
+    <a href="#ep-list-partners" class="nav-link"><span class="method-dot get"></span>List Partners</a>
+    <a href="#ep-get-partner" class="nav-link"><span class="method-dot get"></span>Get Partner</a>
+    <a href="#ep-create-partner" class="nav-link"><span class="method-dot post"></span>Create Partner</a>
+    <a href="#ep-update-partner" class="nav-link"><span class="method-dot put"></span>Update Partner</a>
+    <a href="#ep-delete-partner" class="nav-link"><span class="method-dot delete"></span>Delete Partner</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Reports</div>
+    <a href="#ep-dashboard" class="nav-link"><span class="method-dot get"></span>Dashboard</a>
+    <a href="#ep-funnel" class="nav-link"><span class="method-dot get"></span>Funnel Dashboard</a>
+    <a href="#ep-summary" class="nav-link"><span class="method-dot get"></span>Summary</a>
+    <a href="#ep-pipeline-value" class="nav-link"><span class="method-dot get"></span>Pipeline Value</a>
+    <a href="#ep-rep-perf" class="nav-link"><span class="method-dot get"></span>Rep Performance</a>
+    <a href="#ep-deal-aging" class="nav-link"><span class="method-dot get"></span>Deal Aging</a>
+    <a href="#ep-attention" class="nav-link"><span class="method-dot get"></span>Attention Deals</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Users (Admin)</div>
+    <a href="#ep-list-users" class="nav-link"><span class="method-dot get"></span>List Users</a>
+    <a href="#ep-get-user" class="nav-link"><span class="method-dot get"></span>Get User</a>
+    <a href="#ep-create-user" class="nav-link"><span class="method-dot post"></span>Create User</a>
+    <a href="#ep-update-user" class="nav-link"><span class="method-dot put"></span>Update User</a>
+    <a href="#ep-delete-user" class="nav-link"><span class="method-dot delete"></span>Delete User</a>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="main">
+
+  <!-- Hero -->
+  <div class="hero" id="overview">
+    <h1>Pazo CRM API</h1>
+    <p>Complete REST API for the Pazo CRM platform. Access contacts, companies, deals, activities, reports, and more. Supports both JWT bearer tokens for web applications and API keys for external integrations and mobile apps.</p>
+
+    <div class="info-grid">
+      <div class="info-box">
+        <h3>Base URL</h3>
+        <p><code>http://localhost:3001</code></p>
+        <p style="margin-top:6px;">Internal endpoints: <code>/api/*</code></p>
+        <p>Public v1 API: <code>/api/v1/*</code></p>
+      </div>
+      <div class="info-box">
+        <h3>Response Format</h3>
+        <p>All responses are JSON. Successful responses return data directly (no wrapper). Errors return <code>{ "error": "message" }</code></p>
+      </div>
+      <div class="info-box">
+        <h3>Roles</h3>
+        <p><code>admin</code> &mdash; full access, user management</p>
+        <p><code>manager</code> &mdash; see all data, delete records</p>
+        <p><code>sales_rep</code> &mdash; only own contacts/deals</p>
+      </div>
+      <div class="info-box">
+        <h3>Default Credentials</h3>
+        <p>Email: <code>admin@pazo.com</code></p>
+        <p>Password: <code>admin123</code></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Authentication -->
+  <div class="section" id="authentication">
+    <h2 class="section-title">Authentication</h2>
+    <p class="section-desc">The API supports two authentication methods. Use JWT for the web app, and API keys for external integrations.</p>
+
+    <div class="info-grid">
+      <div class="info-box">
+        <h3>JWT Bearer Token</h3>
+        <p>For web app &amp; write operations. Obtain via <code>POST /api/auth/login</code>.</p>
+        <pre style="margin-top:12px">Authorization: Bearer eyJhbGciOi...</pre>
+      </div>
+      <div class="info-box">
+        <h3>API Key (v1 endpoints)</h3>
+        <p>For external integrations. Create via <code>POST /api/api-keys</code> (requires JWT). Read-only access.</p>
+        <pre style="margin-top:12px">X-API-Key: pzo_a1b2c3d4e5f6...</pre>
+      </div>
+    </div>
+
+    <p class="response-note">API keys inherit the creating user's role. A key created by a <code>sales_rep</code> only returns that rep's data. Admin keys return everything.</p>
+  </div>
+
+  <!-- Rate Limiting -->
+  <div class="section" id="rate-limiting">
+    <h2 class="section-title">Rate Limiting</h2>
+    <p class="section-desc">API v1 endpoints are rate-limited per API key. JWT endpoints are not rate-limited.</p>
+    <table class="rate-limit-table">
+      <tr><td>Limit</td><td>100 requests per minute per API key</td></tr>
+      <tr><td>Header: X-RateLimit-Limit</td><td>Maximum requests in window</td></tr>
+      <tr><td>Header: X-RateLimit-Remaining</td><td>Remaining requests in current window</td></tr>
+      <tr><td>Header: X-RateLimit-Reset</td><td>Unix timestamp when window resets</td></tr>
+      <tr><td>Exceeded response</td><td><code>429 Too Many Requests</code> with <code>Retry-After</code> header</td></tr>
+    </table>
+  </div>
+
+  <!-- Errors -->
+  <div class="section" id="errors">
+    <h2 class="section-title">Error Handling</h2>
+    <p class="section-desc">Errors return a JSON object with an <code>error</code> field and an appropriate HTTP status code.</p>
+    <pre>{
+  "error": "No token provided"
+}</pre>
+    <table class="param-table" style="margin-top:16px">
+      <tr><th>Status</th><th>Meaning</th></tr>
+      <tr><td>400</td><td>Bad request &mdash; missing or invalid parameters</td></tr>
+      <tr><td>401</td><td>Unauthorized &mdash; missing or invalid authentication</td></tr>
+      <tr><td>403</td><td>Forbidden &mdash; insufficient role permissions</td></tr>
+      <tr><td>404</td><td>Not found &mdash; resource does not exist</td></tr>
+      <tr><td>429</td><td>Rate limited &mdash; too many requests</td></tr>
+      <tr><td>500</td><td>Server error</td></tr>
+    </table>
+  </div>
+
+  <!-- ==================== API KEY MANAGEMENT ==================== -->
+  <div class="section" id="api-key-management">
+    <h2 class="section-title">API Key Management</h2>
+    <p class="section-desc">Create, list, and revoke API keys. All endpoints require JWT authentication.</p>
+
+    <div class="endpoint" id="ep-create-key">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge post">POST</span>
+        <span class="endpoint-path">/api/api-keys</span>
+        <span class="endpoint-summary">Create a new API key</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">name</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>Human-readable label for the key (e.g. "Zapier Integration")</td></tr>
+        </table>
+        <h4>Example Request</h4>
+        <pre>POST /api/api-keys
+Authorization: Bearer eyJhbGciOi...
+Content-Type: application/json
+
+{
+  "name": "Mobile App Key"
+}</pre>
+        <h4>Response <span class="param-type">201 Created</span></h4>
+        <pre>{
+  "id": 1,
+  "key": "pzo_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+  "name": "Mobile App Key",
+  "prefix": "pzo_a1b2",
+  "created_at": "2026-03-15T10:30:00.000Z"
+}</pre>
+        <p class="response-note">The full <code>key</code> value is shown only once. Store it securely.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-list-keys">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/api-keys</span>
+        <span class="endpoint-summary">List all API keys for the current user</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Response <span class="param-type">200 OK</span></h4>
+        <pre>[
+  {
+    "id": 1,
+    "name": "Mobile App Key",
+    "key_prefix": "pzo_a1b2",
+    "is_active": 1,
+    "last_used_at": "2026-03-15T12:00:00.000Z",
+    "created_at": "2026-03-15T10:30:00.000Z"
+  }
+]</pre>
+        <p class="response-note">Admins see all keys. Other users see only their own.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-revoke-key">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge delete">DELETE</span>
+        <span class="endpoint-path">/api/api-keys/:id</span>
+        <span class="endpoint-summary">Revoke an API key</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Path Parameters</h4>
+        <table class="param-table">
+          <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+          <tr><td><span class="param-name">id</span></td><td><span class="param-type">integer</span></td><td>API key ID</td></tr>
+        </table>
+        <h4>Response <span class="param-type">200 OK</span></h4>
+        <pre>{ "message": "API key revoked" }</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== AUTH ==================== -->
+  <div class="section" id="auth">
+    <h2 class="section-title">Auth</h2>
+    <p class="section-desc">JWT-based login, profile retrieval, and profile updates.</p>
+
+    <div class="endpoint" id="ep-login">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge post">POST</span>
+        <span class="endpoint-path">/api/auth/login</span>
+        <span class="endpoint-summary">Login and get JWT token</span>
+        <span class="auth-badge" style="background:#e2e8f0;color:#475569">None</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">email</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>User email address</td></tr>
+          <tr><td><span class="param-name">password</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>User password</td></tr>
+        </table>
+        <h4>Response <span class="param-type">200 OK</span></h4>
+        <pre>{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "user": {
+    "id": 1,
+    "name": "Admin User",
+    "email": "admin@pazo.com",
+    "role": "admin"
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-me">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/auth/me</span>
+        <span class="endpoint-summary">Get current user profile</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Response <span class="param-type">200 OK</span></h4>
+        <pre>{
+  "id": 1,
+  "name": "Admin User",
+  "email": "admin@pazo.com",
+  "role": "admin",
+  "is_active": 1,
+  "created_at": "2026-03-01T00:00:00.000Z"
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-update-me">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge put">PUT</span>
+        <span class="endpoint-path">/api/auth/me</span>
+        <span class="endpoint-summary">Update current user profile</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">name</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Display name</td></tr>
+          <tr><td><span class="param-name">email</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Email address</td></tr>
+          <tr><td><span class="param-name">password</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>New password</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CONTACTS ==================== -->
+  <div class="section" id="contacts">
+    <h2 class="section-title">Contacts</h2>
+    <p class="section-desc">Manage CRM contacts. Sales reps only see contacts they own. Available on both JWT (<code>/api/contacts</code>) and API key (<code>/api/v1/contacts</code>, read-only).</p>
+
+    <div class="endpoint" id="ep-list-contacts">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/contacts</span>
+        <span class="endpoint-summary">List all contacts</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Response <span class="param-type">200 OK</span></h4>
+        <pre>[
+  {
+    "id": 1,
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john@example.com",
+    "phone": "+1234567890",
+    "job_title": "CTO",
+    "company_id": 1,
+    "company_name": "Acme Corp",
+    "owner_id": 1,
+    "partner_id": null,
+    "lead_source": "Inbound",
+    "created_at": "2026-03-01T00:00:00.000Z"
+  }
+]</pre>
+        <p class="response-note">Sales reps only see contacts where <code>owner_id</code> matches their user ID.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-get-contact">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/contacts/:id</span>
+        <span class="endpoint-summary">Get a single contact</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Path Parameters</h4>
+        <table class="param-table">
+          <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+          <tr><td><span class="param-name">id</span></td><td><span class="param-type">integer</span></td><td>Contact ID</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-create-contact">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge post">POST</span>
+        <span class="endpoint-path">/api/contacts</span>
+        <span class="endpoint-summary">Create a new contact</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">first_name</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>First name</td></tr>
+          <tr><td><span class="param-name">last_name</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>Last name</td></tr>
+          <tr><td><span class="param-name">email</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Email address</td></tr>
+          <tr><td><span class="param-name">phone</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Phone number</td></tr>
+          <tr><td><span class="param-name">job_title</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Job title</td></tr>
+          <tr><td><span class="param-name">company_id</span></td><td><span class="param-type">integer</span></td><td><span class="param-optional">optional</span></td><td>Link to company</td></tr>
+        </table>
+        <h4>Example Request</h4>
+        <pre>POST /api/contacts
+Content-Type: application/json
+
+{
+  "first_name": "John",
+  "last_name": "Doe",
+  "email": "john@example.com",
+  "phone": "+1234567890",
+  "job_title": "CTO",
+  "company_id": 1
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-update-contact">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge put">PUT</span>
+        <span class="endpoint-path">/api/contacts/:id</span>
+        <span class="endpoint-summary">Update a contact</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Same fields as create. All fields are optional &mdash; only provided fields are updated.</p>
+        <h4>Additional Fields</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+          <tr><td><span class="param-name">owner_id</span></td><td><span class="param-type">integer</span></td><td>Reassign contact owner</td></tr>
+          <tr><td><span class="param-name">partner_id</span></td><td><span class="param-type">integer</span></td><td>Link to partner</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-delete-contact">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge delete">DELETE</span>
+        <span class="endpoint-path">/api/contacts/:id</span>
+        <span class="endpoint-summary">Delete a contact</span>
+        <span class="auth-badge">JWT &middot; admin/manager</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Only admin and manager roles can delete contacts.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== COMPANIES ==================== -->
+  <div class="section" id="companies">
+    <h2 class="section-title">Companies</h2>
+    <p class="section-desc">Manage CRM companies. Available on both JWT (<code>/api/companies</code>) and API key (<code>/api/v1/companies</code>, read-only).</p>
+
+    <div class="endpoint" id="ep-list-companies">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/companies</span>
+        <span class="endpoint-summary">List all companies</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Response <span class="param-type">200 OK</span></h4>
+        <pre>[
+  {
+    "id": 1,
+    "name": "Acme Corp",
+    "industry": "Technology",
+    "website": "https://acme.com",
+    "phone": "+1234567890",
+    "address": "123 Main St",
+    "created_at": "2026-03-01T00:00:00.000Z"
+  }
+]</pre>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-get-company">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/companies/:id</span>
+        <span class="endpoint-summary">Get company with contacts and deals</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Returns company details along with linked contacts and deals arrays.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-create-company">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge post">POST</span>
+        <span class="endpoint-path">/api/companies</span>
+        <span class="endpoint-summary">Create a new company</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">name</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>Company name</td></tr>
+          <tr><td><span class="param-name">industry</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Industry sector</td></tr>
+          <tr><td><span class="param-name">website</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Website URL</td></tr>
+          <tr><td><span class="param-name">phone</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Phone number</td></tr>
+          <tr><td><span class="param-name">address</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Physical address</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-update-company">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge put">PUT</span>
+        <span class="endpoint-path">/api/companies/:id</span>
+        <span class="endpoint-summary">Update a company</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Same fields as create. All optional.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-delete-company">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge delete">DELETE</span>
+        <span class="endpoint-path">/api/companies/:id</span>
+        <span class="endpoint-summary">Delete a company</span>
+        <span class="auth-badge">JWT &middot; admin/manager</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Only admin and manager roles can delete companies.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== DEALS ==================== -->
+  <div class="section" id="deals">
+    <h2 class="section-title">Deals</h2>
+    <p class="section-desc">Manage sales deals and pipeline. Sales reps only see their own deals. Available on both JWT (<code>/api/deals</code>) and API key (<code>/api/v1/deals</code>, read-only).</p>
+
+    <div class="endpoint" id="ep-list-deals">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/deals</span>
+        <span class="endpoint-summary">List all deals</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Query Parameters</h4>
+        <table class="param-table">
+          <tr><th>Param</th><th>Type</th><th>Default</th><th>Description</th></tr>
+          <tr><td><span class="param-name">include_closed</span></td><td><span class="param-type">0 | 1</span></td><td>0</td><td>Include Won/Lost deals</td></tr>
+        </table>
+        <h4>Response <span class="param-type">200 OK</span></h4>
+        <pre>[
+  {
+    "id": 1,
+    "title": "Enterprise License",
+    "value": 50000,
+    "stage_id": 2,
+    "stage_name": "Qualified",
+    "company_id": 1,
+    "company_name": "Acme Corp",
+    "contact_id": 1,
+    "contact_name": "John Doe",
+    "owner_id": 1,
+    "owner_name": "Admin User",
+    "expected_close": "2026-06-30",
+    "lead_source": "Inbound",
+    "sentiment": "positive",
+    "lifecycle_state": "active",
+    "created_at": "2026-03-01T00:00:00.000Z"
+  }
+]</pre>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-get-deal">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/deals/:id</span>
+        <span class="endpoint-summary">Get deal with contacts, activities, emails</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Returns full deal object including linked contacts, activities, and email history.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-get-pipeline">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/deals/pipeline</span>
+        <span class="endpoint-summary">Get deals grouped by stage (Kanban view)</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Returns deals organized by pipeline stage with position ordering. Ideal for Kanban-style UI rendering.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-create-deal">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge post">POST</span>
+        <span class="endpoint-path">/api/deals</span>
+        <span class="endpoint-summary">Create a new deal</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">title</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>Deal title</td></tr>
+          <tr><td><span class="param-name">value</span></td><td><span class="param-type">number</span></td><td><span class="param-optional">optional</span></td><td>Deal value (default 0)</td></tr>
+          <tr><td><span class="param-name">stage_id</span></td><td><span class="param-type">integer</span></td><td><span class="param-required">required</span></td><td>Pipeline stage ID</td></tr>
+          <tr><td><span class="param-name">company_id</span></td><td><span class="param-type">integer</span></td><td><span class="param-optional">optional</span></td><td>Linked company</td></tr>
+          <tr><td><span class="param-name">contact_id</span></td><td><span class="param-type">integer</span></td><td><span class="param-optional">optional</span></td><td>Primary contact</td></tr>
+          <tr><td><span class="param-name">owner_id</span></td><td><span class="param-type">integer</span></td><td><span class="param-optional">optional</span></td><td>Deal owner (defaults to current user)</td></tr>
+          <tr><td><span class="param-name">expected_close</span></td><td><span class="param-type">date</span></td><td><span class="param-optional">optional</span></td><td>Expected close date (YYYY-MM-DD)</td></tr>
+          <tr><td><span class="param-name">notes</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Free-text notes</td></tr>
+          <tr><td><span class="param-name">lead_source</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Lead source</td></tr>
+          <tr><td><span class="param-name">partner_id</span></td><td><span class="param-type">integer</span></td><td><span class="param-optional">optional</span></td><td>Referring partner</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-update-deal">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge put">PUT</span>
+        <span class="endpoint-path">/api/deals/:id</span>
+        <span class="endpoint-summary">Update a deal</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Same fields as create. All optional.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-move-stage">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge patch">PATCH</span>
+        <span class="endpoint-path">/api/deals/:id/stage</span>
+        <span class="endpoint-summary">Move deal to a different stage</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">stage_id</span></td><td><span class="param-type">integer</span></td><td><span class="param-required">required</span></td><td>Target stage ID</td></tr>
+          <tr><td><span class="param-name">position</span></td><td><span class="param-type">integer</span></td><td><span class="param-optional">optional</span></td><td>Position within stage (for ordering)</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-delete-deal">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge delete">DELETE</span>
+        <span class="endpoint-path">/api/deals/:id</span>
+        <span class="endpoint-summary">Delete a deal</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Cascading delete &mdash; removes linked activities.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ACTIVITIES ==================== -->
+  <div class="section" id="activities">
+    <h2 class="section-title">Activities</h2>
+    <p class="section-desc">Track calls, emails, meetings, notes, and tasks linked to deals and contacts. Available on both JWT and API key (read-only).</p>
+
+    <div class="endpoint" id="ep-list-activities">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/activities</span>
+        <span class="endpoint-summary">List activities (filterable)</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Query Parameters</h4>
+        <table class="param-table">
+          <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+          <tr><td><span class="param-name">deal_id</span></td><td><span class="param-type">integer</span></td><td>Filter by deal</td></tr>
+          <tr><td><span class="param-name">contact_id</span></td><td><span class="param-type">integer</span></td><td>Filter by contact</td></tr>
+          <tr><td><span class="param-name">type</span></td><td><span class="param-type">string</span></td><td>Filter by type: <code>call</code>, <code>email</code>, <code>meeting</code>, <code>note</code>, <code>task</code></td></tr>
+        </table>
+        <h4>Response <span class="param-type">200 OK</span></h4>
+        <pre>[
+  {
+    "id": 1,
+    "type": "call",
+    "subject": "Follow-up call",
+    "description": "Discussed pricing options",
+    "due_date": "2026-03-20",
+    "is_completed": 0,
+    "deal_id": 1,
+    "contact_id": 1,
+    "user_id": 1,
+    "created_at": "2026-03-15T10:00:00.000Z"
+  }
+]</pre>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-get-activity">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/activities/:id</span>
+        <span class="endpoint-summary">Get a single activity</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Path Parameters</h4>
+        <table class="param-table">
+          <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+          <tr><td><span class="param-name">id</span></td><td><span class="param-type">integer</span></td><td>Activity ID</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-create-activity">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge post">POST</span>
+        <span class="endpoint-path">/api/activities</span>
+        <span class="endpoint-summary">Create a new activity</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">type</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td><code>call</code>, <code>email</code>, <code>meeting</code>, <code>note</code>, <code>task</code></td></tr>
+          <tr><td><span class="param-name">subject</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>Activity subject</td></tr>
+          <tr><td><span class="param-name">description</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Detailed description</td></tr>
+          <tr><td><span class="param-name">due_date</span></td><td><span class="param-type">date</span></td><td><span class="param-optional">optional</span></td><td>Due date (YYYY-MM-DD)</td></tr>
+          <tr><td><span class="param-name">deal_id</span></td><td><span class="param-type">integer</span></td><td><span class="param-optional">optional</span></td><td>Linked deal</td></tr>
+          <tr><td><span class="param-name">contact_id</span></td><td><span class="param-type">integer</span></td><td><span class="param-optional">optional</span></td><td>Linked contact</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-update-activity">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge put">PUT</span>
+        <span class="endpoint-path">/api/activities/:id</span>
+        <span class="endpoint-summary">Update an activity</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">type</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Activity type</td></tr>
+          <tr><td><span class="param-name">subject</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Subject line</td></tr>
+          <tr><td><span class="param-name">description</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Description</td></tr>
+          <tr><td><span class="param-name">due_date</span></td><td><span class="param-type">date</span></td><td><span class="param-optional">optional</span></td><td>Due date</td></tr>
+          <tr><td><span class="param-name">is_completed</span></td><td><span class="param-type">0 | 1</span></td><td><span class="param-optional">optional</span></td><td>Mark complete</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-delete-activity">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge delete">DELETE</span>
+        <span class="endpoint-path">/api/activities/:id</span>
+        <span class="endpoint-summary">Delete an activity</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Permanently deletes the activity.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== STAGES ==================== -->
+  <div class="section" id="stages">
+    <h2 class="section-title">Stages</h2>
+    <p class="section-desc">Manage deal pipeline stages. Read available to all; write operations require admin role.</p>
+
+    <div class="endpoint" id="ep-list-stages">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/stages</span>
+        <span class="endpoint-summary">List all stages</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Response <span class="param-type">200 OK</span></h4>
+        <pre>[
+  { "id": 1, "name": "Lead", "display_order": 1, "is_closed": 0 },
+  { "id": 2, "name": "Qualified", "display_order": 2, "is_closed": 0 },
+  { "id": 3, "name": "Proposal", "display_order": 3, "is_closed": 0 },
+  { "id": 4, "name": "Negotiation", "display_order": 4, "is_closed": 0 },
+  { "id": 5, "name": "Won", "display_order": 5, "is_closed": 1 },
+  { "id": 6, "name": "Lost", "display_order": 6, "is_closed": 1 }
+]</pre>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-create-stage">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge post">POST</span>
+        <span class="endpoint-path">/api/stages</span>
+        <span class="endpoint-summary">Create a stage</span>
+        <span class="auth-badge">JWT &middot; admin</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">name</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>Stage name (must be unique)</td></tr>
+          <tr><td><span class="param-name">display_order</span></td><td><span class="param-type">integer</span></td><td><span class="param-required">required</span></td><td>Sort position</td></tr>
+          <tr><td><span class="param-name">is_closed</span></td><td><span class="param-type">0 | 1</span></td><td><span class="param-optional">optional</span></td><td>Whether stage represents a closed state (default 0)</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-update-stage">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge put">PUT</span>
+        <span class="endpoint-path">/api/stages/:id</span>
+        <span class="endpoint-summary">Update a stage</span>
+        <span class="auth-badge">JWT &middot; admin</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Same fields as create. All optional.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-delete-stage">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge delete">DELETE</span>
+        <span class="endpoint-path">/api/stages/:id</span>
+        <span class="endpoint-summary">Delete a stage</span>
+        <span class="auth-badge">JWT &middot; admin</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Fails if any deals are currently in this stage. Move deals first.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PARTNERS ==================== -->
+  <div class="section" id="partners">
+    <h2 class="section-title">Partners</h2>
+    <p class="section-desc">Manage channel, outbound, and referral partners. Available on both JWT and API key (read-only).</p>
+
+    <div class="endpoint" id="ep-list-partners">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/partners</span>
+        <span class="endpoint-summary">List all partners</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Response <span class="param-type">200 OK</span></h4>
+        <pre>[
+  {
+    "id": 1,
+    "name": "TechPartners Inc",
+    "type": "Channel Partner",
+    "contact_name": "Alice Brown",
+    "email": "alice@techpartners.com",
+    "phone": "+1234567890",
+    "notes": "Strategic partner for EMEA",
+    "created_at": "2026-03-01T00:00:00.000Z"
+  }
+]</pre>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-get-partner">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/partners/:id</span>
+        <span class="endpoint-summary">Get partner with linked contacts and deals</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Returns partner details along with all linked contacts and deals.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-create-partner">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge post">POST</span>
+        <span class="endpoint-path">/api/partners</span>
+        <span class="endpoint-summary">Create a partner</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">name</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>Partner name</td></tr>
+          <tr><td><span class="param-name">type</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td><code>Channel Partner</code>, <code>Outbound Partner</code>, <code>Referral Partner</code></td></tr>
+          <tr><td><span class="param-name">contact_name</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Primary contact name</td></tr>
+          <tr><td><span class="param-name">email</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Contact email</td></tr>
+          <tr><td><span class="param-name">phone</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Contact phone</td></tr>
+          <tr><td><span class="param-name">notes</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Notes about partnership</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-update-partner">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge put">PUT</span>
+        <span class="endpoint-path">/api/partners/:id</span>
+        <span class="endpoint-summary">Update a partner</span>
+        <span class="auth-badge">JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Same fields as create. All optional.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-delete-partner">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge delete">DELETE</span>
+        <span class="endpoint-path">/api/partners/:id</span>
+        <span class="endpoint-summary">Delete a partner</span>
+        <span class="auth-badge">JWT &middot; admin/manager</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Only admin and manager roles can delete partners.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== REPORTS ==================== -->
+  <div class="section" id="reports">
+    <h2 class="section-title">Reports</h2>
+    <p class="section-desc">Analytics and reporting endpoints. All support date range filtering. Available on both JWT and API key (read-only).</p>
+
+    <div class="info-box" style="margin-bottom:20px">
+      <h3>Date Range Parameters (all report endpoints)</h3>
+      <table class="param-table" style="margin-top:8px">
+        <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+        <tr><td><span class="param-name">preset</span></td><td><span class="param-type">string</span></td><td><code>last_week</code>, <code>last_month</code>, <code>last_quarter</code></td></tr>
+        <tr><td><span class="param-name">start_date</span></td><td><span class="param-type">date</span></td><td>Custom range start (YYYY-MM-DD). Overrides preset.</td></tr>
+        <tr><td><span class="param-name">end_date</span></td><td><span class="param-type">date</span></td><td>Custom range end (YYYY-MM-DD)</td></tr>
+      </table>
+    </div>
+
+    <div class="endpoint" id="ep-dashboard">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/reports/dashboard</span>
+        <span class="endpoint-summary">Main dashboard metrics</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Returns: snapshot (totals), movement (new/won/lost in period), stage health, top attention deals, and rep leaderboard. Sales reps see only their own metrics.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-funnel">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/reports/funnel-dashboard</span>
+        <span class="endpoint-summary">Funnel, forecast, conversion rates</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Returns: sales forecast, conversion funnel, lost deal breakdown by reason, and quota tracking per rep.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-summary">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/reports/summary</span>
+        <span class="endpoint-summary">Deals summary counts</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Returns counts and values for: won, lost, active, stale (no activity 7+ days), and inactive deals.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-pipeline-value">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/reports/pipeline-value</span>
+        <span class="endpoint-summary">Pipeline value by stage</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Returns total deal value grouped by pipeline stage.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-rep-perf">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/reports/rep-performance</span>
+        <span class="endpoint-summary">Per-rep performance metrics</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Returns per-rep: won deals count, total won value, average cycle time, and open pipeline value.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-deal-aging">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/reports/deal-aging</span>
+        <span class="endpoint-summary">Days in current stage per deal</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Returns each open deal with the number of days it has been in its current stage.</p>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-attention">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/reports/attention</span>
+        <span class="endpoint-summary">Top deals needing attention</span>
+        <span class="auth-badge">JWT</span>
+        <span class="auth-badge api-key">API Key</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Returns top 10 deals ranked by attention score. Score factors: negative sentiment (+50), no recent activity (+25), days stuck in stage (up to +30).</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== USERS ==================== -->
+  <div class="section" id="users">
+    <h2 class="section-title">Users (Admin Only)</h2>
+    <p class="section-desc">User management endpoints. All require admin role.</p>
+
+    <div class="endpoint" id="ep-list-users">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/users</span>
+        <span class="endpoint-summary">List all users</span>
+        <span class="auth-badge">JWT &middot; admin</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Response <span class="param-type">200 OK</span></h4>
+        <pre>[
+  {
+    "id": 1,
+    "name": "Admin User",
+    "email": "admin@pazo.com",
+    "role": "admin",
+    "is_active": 1,
+    "created_at": "2026-03-01T00:00:00.000Z"
+  }
+]</pre>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-get-user">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge get">GET</span>
+        <span class="endpoint-path">/api/users/:id</span>
+        <span class="endpoint-summary">Get user by ID</span>
+        <span class="auth-badge">JWT &middot; admin</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Path Parameters</h4>
+        <table class="param-table">
+          <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+          <tr><td><span class="param-name">id</span></td><td><span class="param-type">integer</span></td><td>User ID</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-create-user">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge post">POST</span>
+        <span class="endpoint-path">/api/users</span>
+        <span class="endpoint-summary">Create a new user</span>
+        <span class="auth-badge">JWT &middot; admin</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">name</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>Full name</td></tr>
+          <tr><td><span class="param-name">email</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>Email (must be unique)</td></tr>
+          <tr><td><span class="param-name">password</span></td><td><span class="param-type">string</span></td><td><span class="param-required">required</span></td><td>Password</td></tr>
+          <tr><td><span class="param-name">role</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td><code>admin</code>, <code>manager</code>, <code>sales_rep</code> (default)</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-update-user">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge put">PUT</span>
+        <span class="endpoint-path">/api/users/:id</span>
+        <span class="endpoint-summary">Update a user</span>
+        <span class="auth-badge">JWT &middot; admin</span>
+      </div>
+      <div class="endpoint-body">
+        <h4>Request Body</h4>
+        <table class="param-table">
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><span class="param-name">name</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Full name</td></tr>
+          <tr><td><span class="param-name">email</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Email</td></tr>
+          <tr><td><span class="param-name">role</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Role</td></tr>
+          <tr><td><span class="param-name">is_active</span></td><td><span class="param-type">0 | 1</span></td><td><span class="param-optional">optional</span></td><td>Enable/disable user</td></tr>
+          <tr><td><span class="param-name">password</span></td><td><span class="param-type">string</span></td><td><span class="param-optional">optional</span></td><td>Reset password</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="endpoint" id="ep-delete-user">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="toggle-arrow">&#9654;</span>
+        <span class="method-badge delete">DELETE</span>
+        <span class="endpoint-path">/api/users/:id</span>
+        <span class="endpoint-summary">Delete a user</span>
+        <span class="auth-badge">JWT &middot; admin</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="response-note">Permanently deletes the user account.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="margin-top:64px; padding-top:24px; border-top:1px solid var(--border); color:var(--text-muted); font-size:13px;">
+    <p>Pazo CRM API Documentation &mdash; Generated March 2026</p>
+    <p style="margin-top:4px;">Postman collection available at <code>backend/postman/pazo-crm-api.json</code></p>
+  </div>
+
+</main>
+
+<script>
+// Open endpoint on hash navigation
+document.addEventListener('DOMContentLoaded', () => {
+  if (location.hash) {
+    const el = document.querySelector(location.hash);
+    if (el && el.classList.contains('endpoint')) el.classList.add('open');
+  }
+});
+
+// Smooth scroll for sidebar links
+document.querySelectorAll('.nav-link').forEach(link => {
+  link.addEventListener('click', (e) => {
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target) {
+      e.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (target.classList.contains('endpoint')) target.classList.add('open');
+      history.pushState(null, null, link.getAttribute('href'));
+    }
+  });
+});
+</script>
+
+</body>
+</html>

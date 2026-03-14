@@ -55,9 +55,22 @@ app.use('/api/auto-approve', require('./routes/autoApprove'));
 app.use('/api/ai-logs', require('./routes/aiLogs'));
 app.use('/api/ignore-list', require('./routes/ignoreList'));
 app.use('/api/partners', require('./routes/partners'));
+app.use('/api/api-keys', require('./routes/apiKeys'));
+app.use('/api/v1', require('./routes/v1'));
+
+// Serve API docs and Postman collection
+const path = require('path');
+const docsDir = path.join(__dirname, '../postman');
+app.get('/api/docs', (req, res) => {
+  res.sendFile(path.join(docsDir, 'api-docs.html'));
+});
+app.get('/api/docs/postman', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', 'attachment; filename="pazo-crm-api.json"');
+  res.sendFile(path.join(docsDir, 'pazo-crm-api.json'));
+});
 
 // Serve frontend in production
-const path = require('path');
 const frontendDist = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendDist));
 

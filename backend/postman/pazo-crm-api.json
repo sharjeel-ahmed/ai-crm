@@ -1,0 +1,1305 @@
+{
+  "info": {
+    "name": "Pazo CRM API",
+    "description": "Public API for Pazo CRM. Includes both the internal JWT-authenticated endpoints and the external API key-authenticated v1 endpoints.\n\n## Authentication\n\n### JWT (Internal)\nUse `POST /api/auth/login` to get a Bearer token.\n\n### API Key (Public v1)\nPass your API key in the `X-API-Key` header. Create keys via `POST /api/api-keys` (requires JWT).\n\n## Rate Limiting\nv1 endpoints are rate-limited to 100 requests/minute per API key. Check `X-RateLimit-Remaining` header.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3001",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "description": "JWT authentication endpoints",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.token) {",
+                  "  pm.collectionVariables.set('jwt_token', res.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@pazo.com\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login with email/password. Returns JWT token and user object. The token is automatically saved to the `jwt_token` collection variable."
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin User\",\n  \"email\": \"admin@pazo.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "API Key Management",
+      "description": "Create and manage API keys (requires JWT auth)",
+      "item": [
+        {
+          "name": "Create API Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.key) {",
+                  "  pm.collectionVariables.set('api_key', res.key);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Integration Key\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/api-keys",
+              "host": ["{{base_url}}"],
+              "path": ["api", "api-keys"]
+            },
+            "description": "Creates a new API key. The full key is returned ONCE — store it securely. Automatically saved to `api_key` collection variable."
+          }
+        },
+        {
+          "name": "List API Keys",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/api-keys",
+              "host": ["{{base_url}}"],
+              "path": ["api", "api-keys"]
+            }
+          }
+        },
+        {
+          "name": "Revoke API Key",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/api-keys/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "api-keys", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "v1 — Contacts",
+      "description": "Public API - Contacts (requires X-API-Key)",
+      "item": [
+        {
+          "name": "List Contacts",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/contacts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contacts"]
+            },
+            "description": "Returns all contacts. Sales rep keys only see their own contacts."
+          }
+        },
+        {
+          "name": "Get Contact by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/contacts/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "contacts", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "v1 — Companies",
+      "description": "Public API - Companies (requires X-API-Key)",
+      "item": [
+        {
+          "name": "List Companies",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "companies"]
+            }
+          }
+        },
+        {
+          "name": "Get Company by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "companies", "1"]
+            },
+            "description": "Returns company details including linked contacts and deals."
+          }
+        }
+      ]
+    },
+    {
+      "name": "v1 — Deals",
+      "description": "Public API - Deals (requires X-API-Key)",
+      "item": [
+        {
+          "name": "List Deals",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/deals?include_closed=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "deals"],
+              "query": [
+                { "key": "include_closed", "value": "0", "description": "Set to 1 to include closed deals" }
+              ]
+            },
+            "description": "Returns deals. Sales rep keys only see their own. Use `include_closed=1` to include Won/Lost deals."
+          }
+        },
+        {
+          "name": "Get Deal by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/deals/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "deals", "1"]
+            },
+            "description": "Returns deal with contacts, activities, and emails."
+          }
+        },
+        {
+          "name": "Get Pipeline",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/deals/pipeline",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "deals", "pipeline"]
+            },
+            "description": "Returns deals grouped by stage with positions."
+          }
+        },
+        {
+          "name": "Get Deal Owners",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/deals/owners",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "deals", "owners"]
+            },
+            "description": "Returns list of active users who can own deals."
+          }
+        }
+      ]
+    },
+    {
+      "name": "v1 — Activities",
+      "description": "Public API - Activities (requires X-API-Key)",
+      "item": [
+        {
+          "name": "List Activities",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities?deal_id=&contact_id=&type=",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "activities"],
+              "query": [
+                { "key": "deal_id", "value": "", "description": "Filter by deal ID" },
+                { "key": "contact_id", "value": "", "description": "Filter by contact ID" },
+                { "key": "type", "value": "", "description": "Filter by type: call, email, meeting, note, task" }
+              ]
+            },
+            "description": "Returns activities. Filterable by deal_id, contact_id, or type."
+          }
+        },
+        {
+          "name": "Get Activity by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/activities/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "activities", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "v1 — Stages",
+      "description": "Public API - Deal Stages (requires X-API-Key)",
+      "item": [
+        {
+          "name": "List Stages",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/stages",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "stages"]
+            },
+            "description": "Returns all deal stages ordered by display_order."
+          }
+        }
+      ]
+    },
+    {
+      "name": "v1 — Partners",
+      "description": "Public API - Partners (requires X-API-Key)",
+      "item": [
+        {
+          "name": "List Partners",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/partners",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "partners"]
+            }
+          }
+        },
+        {
+          "name": "Get Partner by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/partners/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "partners", "1"]
+            },
+            "description": "Returns partner with linked contacts and deals."
+          }
+        }
+      ]
+    },
+    {
+      "name": "v1 — Reports",
+      "description": "Public API - Reports & Analytics (requires X-API-Key)",
+      "item": [
+        {
+          "name": "Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/dashboard?preset=last_month",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reports", "dashboard"],
+              "query": [
+                { "key": "preset", "value": "last_month", "description": "last_week | last_month | last_quarter" }
+              ]
+            },
+            "description": "Main dashboard: snapshot, movement, stage health, attention deals, leaderboard."
+          }
+        },
+        {
+          "name": "Funnel Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/funnel-dashboard?preset=last_month",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reports", "funnel-dashboard"],
+              "query": [
+                { "key": "preset", "value": "last_month" }
+              ]
+            },
+            "description": "Funnel analysis: forecast, conversion rates, lost deals, quota tracking."
+          }
+        },
+        {
+          "name": "Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/summary?preset=last_month",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reports", "summary"],
+              "query": [
+                { "key": "preset", "value": "last_month" }
+              ]
+            },
+            "description": "Deals summary: won, lost, active, stale, inactive counts."
+          }
+        },
+        {
+          "name": "Pipeline Value",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/pipeline-value",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reports", "pipeline-value"]
+            },
+            "description": "Total pipeline value grouped by stage."
+          }
+        },
+        {
+          "name": "Rep Performance",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/rep-performance?preset=last_month",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reports", "rep-performance"],
+              "query": [
+                { "key": "preset", "value": "last_month" }
+              ]
+            },
+            "description": "Per-rep metrics: won deals, cycle time, open value."
+          }
+        },
+        {
+          "name": "Deal Aging",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/deal-aging",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reports", "deal-aging"]
+            },
+            "description": "Days each deal has spent in its current stage."
+          }
+        },
+        {
+          "name": "Attention Deals",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reports/attention",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reports", "attention"]
+            },
+            "description": "Top 10 deals needing attention based on priority score."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users (Admin)",
+      "description": "User management — JWT auth, admin role required",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"]
+            }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Smith\",\n  \"email\": \"jane@company.com\",\n  \"password\": \"securepass123\",\n  \"role\": \"sales_rep\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"]
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Smith\",\n  \"role\": \"manager\",\n  \"is_active\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users/2",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "2"]
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users/2",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "2"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contacts (JWT)",
+      "description": "Contact management — JWT auth required",
+      "item": [
+        {
+          "name": "List Contacts",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/contacts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "contacts"]
+            }
+          }
+        },
+        {
+          "name": "Get Contact",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/contacts/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "contacts", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create Contact",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"email\": \"john@example.com\",\n  \"phone\": \"+1234567890\",\n  \"job_title\": \"CTO\",\n  \"company_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/contacts",
+              "host": ["{{base_url}}"],
+              "path": ["api", "contacts"]
+            }
+          }
+        },
+        {
+          "name": "Update Contact",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"email\": \"john.doe@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/contacts/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "contacts", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete Contact",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/contacts/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "contacts", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Companies (JWT)",
+      "description": "Company management — JWT auth required",
+      "item": [
+        {
+          "name": "List Companies",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/companies",
+              "host": ["{{base_url}}"],
+              "path": ["api", "companies"]
+            }
+          }
+        },
+        {
+          "name": "Get Company",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/companies/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "companies", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create Company",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Corp\",\n  \"industry\": \"Technology\",\n  \"website\": \"https://acme.com\",\n  \"phone\": \"+1234567890\",\n  \"address\": \"123 Main St\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/companies",
+              "host": ["{{base_url}}"],
+              "path": ["api", "companies"]
+            }
+          }
+        },
+        {
+          "name": "Update Company",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Corporation\",\n  \"industry\": \"SaaS\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/companies/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "companies", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete Company",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/companies/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "companies", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Deals (JWT)",
+      "description": "Deal management — JWT auth required",
+      "item": [
+        {
+          "name": "List Deals",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/deals?include_closed=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "deals"],
+              "query": [
+                { "key": "include_closed", "value": "0" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Deal",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/deals/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "deals", "1"]
+            }
+          }
+        },
+        {
+          "name": "Get Pipeline",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/deals/pipeline",
+              "host": ["{{base_url}}"],
+              "path": ["api", "deals", "pipeline"]
+            }
+          }
+        },
+        {
+          "name": "Create Deal",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Enterprise License\",\n  \"value\": 50000,\n  \"stage_id\": 1,\n  \"company_id\": 1,\n  \"contact_id\": 1,\n  \"expected_close\": \"2026-06-30\",\n  \"notes\": \"High priority deal\",\n  \"lead_source\": \"Inbound\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/deals",
+              "host": ["{{base_url}}"],
+              "path": ["api", "deals"]
+            }
+          }
+        },
+        {
+          "name": "Update Deal",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Enterprise License - Renewed\",\n  \"value\": 75000\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/deals/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "deals", "1"]
+            }
+          }
+        },
+        {
+          "name": "Move Deal Stage",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stage_id\": 2,\n  \"position\": 0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/deals/1/stage",
+              "host": ["{{base_url}}"],
+              "path": ["api", "deals", "1", "stage"]
+            }
+          }
+        },
+        {
+          "name": "Delete Deal",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/deals/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "deals", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Activities (JWT)",
+      "description": "Activity management — JWT auth required",
+      "item": [
+        {
+          "name": "List Activities",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/activities?deal_id=&contact_id=&type=",
+              "host": ["{{base_url}}"],
+              "path": ["api", "activities"],
+              "query": [
+                { "key": "deal_id", "value": "" },
+                { "key": "contact_id", "value": "" },
+                { "key": "type", "value": "" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Activity",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/activities/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "activities", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create Activity",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"call\",\n  \"subject\": \"Follow-up call\",\n  \"description\": \"Discussed pricing options\",\n  \"due_date\": \"2026-03-20\",\n  \"deal_id\": 1,\n  \"contact_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/activities",
+              "host": ["{{base_url}}"],
+              "path": ["api", "activities"]
+            }
+          }
+        },
+        {
+          "name": "Update Activity",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"Follow-up call - completed\",\n  \"is_completed\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/activities/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "activities", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete Activity",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/activities/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "activities", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Stages (JWT)",
+      "description": "Stage management — JWT auth required (admin for write ops)",
+      "item": [
+        {
+          "name": "List Stages",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/stages",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stages"]
+            }
+          }
+        },
+        {
+          "name": "Create Stage",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Discovery\",\n  \"display_order\": 2,\n  \"is_closed\": 0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/stages",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stages"]
+            }
+          }
+        },
+        {
+          "name": "Update Stage",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Discovery\",\n  \"display_order\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/stages/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stages", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete Stage",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/stages/7",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stages", "7"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Partners (JWT)",
+      "description": "Partner management — JWT auth required",
+      "item": [
+        {
+          "name": "List Partners",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/partners",
+              "host": ["{{base_url}}"],
+              "path": ["api", "partners"]
+            }
+          }
+        },
+        {
+          "name": "Get Partner",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/partners/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "partners", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create Partner",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"TechPartners Inc\",\n  \"type\": \"Channel Partner\",\n  \"contact_name\": \"Alice Brown\",\n  \"email\": \"alice@techpartners.com\",\n  \"phone\": \"+1234567890\",\n  \"notes\": \"Strategic partner for EMEA\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/partners",
+              "host": ["{{base_url}}"],
+              "path": ["api", "partners"]
+            }
+          }
+        },
+        {
+          "name": "Update Partner",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"TechPartners International\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/partners/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "partners", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete Partner",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/partners/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "partners", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports (JWT)",
+      "description": "Reports & analytics — JWT auth required",
+      "item": [
+        {
+          "name": "Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reports/dashboard?preset=last_month",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "dashboard"],
+              "query": [
+                { "key": "preset", "value": "last_month" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Funnel Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reports/funnel-dashboard?preset=last_month",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "funnel-dashboard"],
+              "query": [
+                { "key": "preset", "value": "last_month" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reports/summary?preset=last_month",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "summary"],
+              "query": [
+                { "key": "preset", "value": "last_month" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Pipeline Value",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reports/pipeline-value",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "pipeline-value"]
+            }
+          }
+        },
+        {
+          "name": "Rep Performance",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reports/rep-performance?preset=last_month",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "rep-performance"],
+              "query": [
+                { "key": "preset", "value": "last_month" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Deal Aging",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reports/deal-aging",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "deal-aging"]
+            }
+          }
+        },
+        {
+          "name": "Attention Deals",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reports/attention",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "attention"]
+            }
+          }
+        },
+        {
+          "name": "Get Targets",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reports/targets?period=2026-03",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "targets"],
+              "query": [
+                { "key": "period", "value": "2026-03" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Set Target",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"period\": \"2026-03\",\n  \"target_value\": 100000\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/reports/targets",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "targets"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
