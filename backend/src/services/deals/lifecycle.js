@@ -9,6 +9,7 @@ function syncDealLifecycleStates(db) {
     )
       AND julianday('now') - julianday(COALESCE(stage_changed_at, updated_at, created_at)) > 60
       AND COALESCE(lifecycle_state, 'active') != 'closed'
+      AND COALESCE(lifecycle_manual, 0) = 0
   `);
 
   db.exec(`
@@ -23,6 +24,7 @@ function syncDealLifecycleStates(db) {
       OR julianday('now') - julianday(COALESCE(stage_changed_at, updated_at, created_at)) <= 60
     )
       AND COALESCE(lifecycle_state, 'active') != 'active'
+      AND COALESCE(lifecycle_manual, 0) = 0
   `);
 }
 

@@ -287,7 +287,7 @@ function updateStage(req, res) {
   const newStage = db.prepare('SELECT name FROM deal_stages WHERE id = ?').get(stage_id);
 
   const stageChanged = deal.stage_id !== stage_id;
-  db.prepare(`UPDATE deals SET stage_id = ?, position = ?, updated_at = datetime('now'), lifecycle_state = 'active', closed_at = NULL${stageChanged ? ", stage_changed_at = datetime('now')" : ''} WHERE id = ?`)
+  db.prepare(`UPDATE deals SET stage_id = ?, position = ?, updated_at = datetime('now'), lifecycle_state = 'active', closed_at = NULL, lifecycle_manual = 0${stageChanged ? ", stage_changed_at = datetime('now')" : ''} WHERE id = ?`)
     .run(stage_id, position !== undefined ? position : 0, req.params.id);
 
   // Log stage movement activity
@@ -314,7 +314,7 @@ function updateLifecycle(req, res) {
   if (!deal) return res.status(404).json({ error: 'Deal not found' });
 
   const closedAt = lifecycle_state === 'closed' ? "datetime('now')" : 'NULL';
-  db.prepare(`UPDATE deals SET lifecycle_state = ?, closed_at = ${closedAt}, updated_at = datetime('now') WHERE id = ?`)
+  db.prepare(`UPDATE deals SET lifecycle_state = ?, lifecycle_manual = 1, closed_at = ${closedAt}, updated_at = datetime('now') WHERE id = ?`)
     .run(lifecycle_state, req.params.id);
 
   db.prepare(
