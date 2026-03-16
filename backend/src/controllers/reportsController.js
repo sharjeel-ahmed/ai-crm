@@ -48,8 +48,14 @@ function getDateRange(req) {
 }
 
 function getScope(req, alias = 'd') {
-  if (req.user.role === 'sales_rep' || req.query.my_deals === 'true') {
+  if (req.user.role === 'sales_rep') {
     return { clause: `AND ${alias}.owner_id = ?`, params: [req.user.id] };
+  }
+  if (req.query.my_deals === 'true') {
+    return { clause: `AND ${alias}.owner_id = ?`, params: [req.user.id] };
+  }
+  if (req.query.owner_id) {
+    return { clause: `AND ${alias}.owner_id = ?`, params: [parseInt(req.query.owner_id)] };
   }
   return { clause: '', params: [] };
 }
@@ -335,9 +341,10 @@ function attention(req, res) {
 function dashboard(req, res) {
   const db = getDb();
   syncDealLifecycleStates(db);
-  const isMyDeals = req.user.role === 'sales_rep' || req.query.my_deals === 'true';
-  const ownerClause = isMyDeals ? ' AND d.owner_id = ?' : '';
-  const ownerParams = isMyDeals ? [req.user.id] : [];
+  const isScoped = req.user.role === 'sales_rep' || req.query.my_deals === 'true' || req.query.owner_id;
+  const scopedUserId = req.query.owner_id ? parseInt(req.query.owner_id) : req.user.id;
+  const ownerClause = isScoped ? ' AND d.owner_id = ?' : '';
+  const ownerParams = isScoped ? [scopedUserId] : [];
   const activeDealFilter = `COALESCE(d.lifecycle_state, 'active') != 'closed'`;
   const sevenDaysAgo = formatSqlDate(new Date(Date.now() - (6 * 86400000)));
   const thirtyDaysAgo = formatSqlDate(new Date(Date.now() - (29 * 86400000)));
@@ -415,10 +422,10 @@ function dashboard(req, res) {
     LEFT JOIN users u ON a.user_id = u.id
     LEFT JOIN deals d ON d.id = a.deal_id
     WHERE (d.id IS NULL OR COALESCE(d.lifecycle_state, 'active') != 'closed')
-      ${isMyDeals ? 'AND (d.owner_id = ? OR a.user_id = ?)' : ''}
+      ${isScoped ? 'AND (d.owner_id = ? OR a.user_id = ?)' : ''}
     ORDER BY a.created_at DESC
     LIMIT 8
-  `).all(...(isMyDeals ? [req.user.id, req.user.id] : []));
+  `).all(...(isScoped ? [scopedUserId, scopedUserId] : []));
 
   const leadSources = db.prepare(`
     SELECT COALESCE(NULLIF(TRIM(d.lead_source), ''), 'Unknown') AS source,
@@ -460,7 +467,7 @@ function dashboard(req, res) {
     weighted_value: Math.round(row.weighted_value || 0),
   }));
 
-  const repLeaderboard = isMyDeals
+  const repLeaderboard = isScoped
     ? db.prepare(`
       SELECT u.id AS user_id, u.name,
         (SELECT COUNT(*) FROM deals d JOIN deal_stages ds ON ds.id = d.stage_id WHERE d.owner_id = u.id AND ds.is_closed = 0 AND COALESCE(d.lifecycle_state, 'active') != 'closed') AS open_deals,
@@ -470,7 +477,7 @@ function dashboard(req, res) {
         (SELECT COUNT(*) FROM deals d JOIN deal_stages ds ON ds.id = d.stage_id WHERE d.owner_id = u.id AND ds.is_closed = 0 AND COALESCE(d.lifecycle_state, 'active') != 'closed' AND julianday('now') - julianday(COALESCE(d.stage_changed_at, d.updated_at, d.created_at)) >= 14) AS at_risk_open
       FROM users u
       WHERE u.id = ?
-    `).all(thirtyDaysAgo, thirtyDaysAgo, req.user.id)
+    `).all(thirtyDaysAgo, thirtyDaysAgo, scopedUserId)
     : db.prepare(`
       SELECT u.id AS user_id, u.name,
         (SELECT COUNT(*) FROM deals d JOIN deal_stages ds ON ds.id = d.stage_id WHERE d.owner_id = u.id AND ds.is_closed = 0 AND COALESCE(d.lifecycle_state, 'active') != 'closed') AS open_deals,
@@ -606,9 +613,10 @@ function dashboard(req, res) {
 function funnelDashboard(req, res) {
   const db = getDb();
   syncDealLifecycleStates(db);
-  const isMyDeals = req.user.role === 'sales_rep' || req.query.my_deals === 'true';
-  const ownerClause = isMyDeals ? ' AND d.owner_id = ?' : '';
-  const ownerParams = isMyDeals ? [req.user.id] : [];
+  const isScoped = req.user.role === 'sales_rep' || req.query.my_deals === 'true' || req.query.owner_id;
+  const scopedUserId = req.query.owner_id ? parseInt(req.query.owner_id) : req.user.id;
+  const ownerClause = isScoped ? ' AND d.owner_id = ?' : '';
+  const ownerParams = isScoped ? [scopedUserId] : [];
   const activeDealFilter = `COALESCE(d.lifecycle_state, 'active') != 'closed'`;
 
   // --- 1. Forecast by month (expected close dates) ---

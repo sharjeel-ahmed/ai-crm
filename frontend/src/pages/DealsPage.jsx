@@ -22,20 +22,20 @@ export default function DealsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState(null);
-  const [myDeals, setMyDeals] = useState(() => localStorage.getItem('myDealsFilter') === 'true');
-  const toggleMyDeals = (v) => { localStorage.setItem('myDealsFilter', v); setMyDeals(v); };
+  const [dealFilter, setDealFilter] = useState(() => localStorage.getItem('dealFilter') || 'all');
+  const changeDealFilter = (v) => { localStorage.setItem('dealFilter', v); setDealFilter(v); };
   const navigate = useNavigate();
 
   const load = () => {
-    const q = myDeals ? '?my_deals=true' : '';
-    api.get(`/deals${q}`).then((r) => setDeals(r.data));
+    const params = dealFilter === 'all' ? '' : dealFilter === 'mine' ? '?my_deals=true' : `?owner_id=${dealFilter}`;
+    api.get(`/deals${params}`).then((r) => setDeals(r.data));
     api.get('/stages').then((r) => setStages(r.data));
     api.get('/companies').then((r) => setCompanies(r.data));
     api.get('/contacts').then((r) => setContacts(r.data));
     api.get('/partners').then((r) => setPartners(r.data));
     api.get('/deals/owners').then((r) => setOwners(r.data));
   };
-  useEffect(() => { load(); }, [myDeals]);
+  useEffect(() => { load(); }, [dealFilter]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -131,20 +131,17 @@ export default function DealsPage() {
         <div className="flex items-center gap-4">
           <h2 className="text-2xl font-bold text-gray-900">Deals</h2>
           {user?.role !== 'sales_rep' && (
-            <div className="flex items-center rounded-lg border border-stone-200 bg-stone-50 p-0.5">
-              <button
-                onClick={() => toggleMyDeals(false)}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${!myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
-              >
-                All Deals
-              </button>
-              <button
-                onClick={() => toggleMyDeals(true)}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
-              >
-                My Deals
-              </button>
-            </div>
+            <select
+              value={dealFilter}
+              onChange={(e) => changeDealFilter(e.target.value)}
+              className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Deals</option>
+              <option value="mine">My Deals</option>
+              {owners.filter((o) => o.id !== user?.id).map((o) => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
           )}
         </div>
         <button onClick={() => { setForm({ ...emptyForm, stage_id: stages[0]?.id || '', owner_id: owners[0]?.id || '' }); setEditing(null); setModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">

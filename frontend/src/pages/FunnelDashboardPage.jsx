@@ -51,17 +51,17 @@ export default function FunnelDashboardPage() {
   const [showTargetForm, setShowTargetForm] = useState(false);
   const [targetForm, setTargetForm] = useState({ user_id: '', period: new Date().toISOString().slice(0, 7), target_value: '' });
   const [reps, setReps] = useState([]);
-  const [myDeals, setMyDeals] = useState(() => localStorage.getItem('myDealsFilter') === 'true');
-  const toggleMyDeals = (v) => { localStorage.setItem('myDealsFilter', v); setMyDeals(v); };
+  const [dealFilter, setDealFilter] = useState(() => localStorage.getItem('dealFilter') || 'all');
+  const changeDealFilter = (v) => { localStorage.setItem('dealFilter', v); setDealFilter(v); };
 
   useEffect(() => {
     setData(null);
-    const q = myDeals ? '?my_deals=true' : '';
-    api.get(`/reports/funnel-dashboard${q}`).then((r) => setData(r.data));
+    const params = dealFilter === 'all' ? '' : dealFilter === 'mine' ? '?my_deals=true' : `?owner_id=${dealFilter}`;
+    api.get(`/reports/funnel-dashboard${params}`).then((r) => setData(r.data));
     if (user?.role === 'admin' || user?.role === 'manager') {
       api.get('/deals/owners').then((r) => setReps(r.data));
     }
-  }, [user?.role, myDeals]);
+  }, [user?.role, dealFilter]);
 
   function saveTarget(e) {
     e.preventDefault();
@@ -90,20 +90,17 @@ export default function FunnelDashboardPage() {
           <div className="flex items-center justify-between">
             <div className="text-sm uppercase tracking-[0.28em] text-stone-500">Funnel Dashboard</div>
             {user?.role !== 'sales_rep' && (
-              <div className="flex items-center rounded-lg border border-stone-200 bg-stone-50 p-0.5">
-                <button
-                  onClick={() => toggleMyDeals(false)}
-                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${!myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
-                >
-                  All Deals
-                </button>
-                <button
-                  onClick={() => toggleMyDeals(true)}
-                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
-                >
-                  My Deals
-                </button>
-              </div>
+              <select
+                value={dealFilter}
+                onChange={(e) => changeDealFilter(e.target.value)}
+                className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All Deals</option>
+                <option value="mine">My Deals</option>
+                {reps.filter((o) => o.id !== user?.id).map((o) => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </select>
             )}
           </div>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950">Pipeline flow, conversion, and forecast</h2>

@@ -89,14 +89,18 @@ export default function PipelinePage() {
   const [partners, setPartners] = useState([]);
   const [owners, setOwners] = useState([]);
   const [form, setForm] = useState({ title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '' });
-  const [myDeals, setMyDeals] = useState(() => localStorage.getItem('myDealsFilter') === 'true');
-  const toggleMyDeals = (v) => { localStorage.setItem('myDealsFilter', v); setMyDeals(v); };
+  const [dealFilter, setDealFilter] = useState(() => localStorage.getItem('dealFilter') || 'all');
+  const changeDealFilter = (v) => { localStorage.setItem('dealFilter', v); setDealFilter(v); };
+  const [filterOwners, setFilterOwners] = useState([]);
 
   const load = () => {
-    const q = myDeals ? '?my_deals=true' : '';
-    api.get(`/deals/pipeline${q}`).then((r) => setPipeline(r.data));
+    const params = dealFilter === 'all' ? '' : dealFilter === 'mine' ? '?my_deals=true' : `?owner_id=${dealFilter}`;
+    api.get(`/deals/pipeline${params}`).then((r) => setPipeline(r.data));
+    if (user?.role !== 'sales_rep') {
+      api.get('/deals/owners').then((r) => setFilterOwners(r.data));
+    }
   };
-  useEffect(() => { load(); }, [myDeals]);
+  useEffect(() => { load(); }, [dealFilter]);
 
   // Filter Won stage to only show deals from last 30 days
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
@@ -240,20 +244,17 @@ export default function PipelinePage() {
         <div className="flex items-center gap-4">
           <h2 className="text-2xl font-bold text-gray-900">Pipeline</h2>
           {user?.role !== 'sales_rep' && (
-            <div className="flex items-center rounded-lg border border-stone-200 bg-stone-50 p-0.5">
-              <button
-                onClick={() => toggleMyDeals(false)}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${!myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
-              >
-                All Deals
-              </button>
-              <button
-                onClick={() => toggleMyDeals(true)}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
-              >
-                My Deals
-              </button>
-            </div>
+            <select
+              value={dealFilter}
+              onChange={(e) => changeDealFilter(e.target.value)}
+              className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Deals</option>
+              <option value="mine">My Deals</option>
+              {filterOwners.filter((o) => o.id !== user?.id).map((o) => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
           )}
         </div>
         <button

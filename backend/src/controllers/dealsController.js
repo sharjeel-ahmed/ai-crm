@@ -3,8 +3,14 @@ const { refreshDealSentiment } = require('../services/deals/sentiment');
 const { syncDealLifecycleStates, includeClosed, activeDealClause } = require('../services/deals/lifecycle');
 
 function scopeQuery(req) {
-  if (req.user.role === 'sales_rep' || req.query.my_deals === 'true') {
+  if (req.user.role === 'sales_rep') {
     return { where: 'AND d.owner_id = ?', params: [req.user.id] };
+  }
+  if (req.query.my_deals === 'true') {
+    return { where: 'AND d.owner_id = ?', params: [req.user.id] };
+  }
+  if (req.query.owner_id) {
+    return { where: 'AND d.owner_id = ?', params: [parseInt(req.query.owner_id)] };
   }
   return { where: '', params: [] };
 }
