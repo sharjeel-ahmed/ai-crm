@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import Modal from '../components/common/Modal';
 import { formatDate, formatDateTime } from '../utils/dateFormat';
-import { ArrowLeft, Briefcase, Building2, Users, CalendarCheck, IndianRupee, Phone, Mail as MailIcon, MailOpen, Sparkles, ChevronDown, Pencil, Clock } from 'lucide-react';
+import { ArrowLeft, Briefcase, Building2, Users, CalendarCheck, IndianRupee, Phone, Mail as MailIcon, MailOpen, Sparkles, ChevronDown, Pencil, Clock, Archive, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DealSentimentBadge from '../components/deals/DealSentimentBadge';
+import { useAuth } from '../context/AuthContext';
 
 const stageColors = {
   Lead: 'bg-gray-100 text-gray-700',
@@ -48,6 +49,7 @@ function stageAgeColor(stageChangedAt) {
 export default function DealDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [deal, setDeal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
@@ -133,6 +135,19 @@ export default function DealDetailPage() {
     loadDeal(true).then(() => setShowAll(true));
   };
 
+  const handleToggleLifecycle = async () => {
+    const newState = deal.lifecycle_state === 'closed' ? 'active' : 'closed';
+    const action = newState === 'closed' ? 'close' : 'reopen';
+    if (!confirm(`Are you sure you want to ${action} this deal?`)) return;
+    try {
+      await api.patch(`/deals/${id}/lifecycle`, { lifecycle_state: newState });
+      toast.success(`Deal ${newState === 'closed' ? 'closed' : 'reopened'}`);
+      loadDeal(showAll);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error');
+    }
+  };
+
   return (
     <div>
       {/* Header */}
@@ -170,9 +185,22 @@ export default function DealDetailPage() {
               {deal.expected_close && <span>Close: {formatDate(deal.expected_close)}</span>}
             </div>
           </div>
-          <button onClick={openEditModal} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            <Pencil size={16} /> Edit
-          </button>
+          <div className="flex items-center gap-2">
+            {deal.lifecycle_state === 'closed' && (
+              <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-stone-100 text-stone-600">Closed</span>
+            )}
+            {user?.role === 'admin' && (
+              <button
+                onClick={handleToggleLifecycle}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg ${deal.lifecycle_state === 'closed' ? 'border border-green-300 text-green-700 hover:bg-green-50' : 'border border-stone-300 text-stone-700 hover:bg-stone-50'}`}
+              >
+                {deal.lifecycle_state === 'closed' ? <><RotateCcw size={16} /> Reopen</> : <><Archive size={16} /> Close Deal</>}
+              </button>
+            )}
+            <button onClick={openEditModal} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <Pencil size={16} /> Edit
+            </button>
+          </div>
         </div>
         {deal.notes && (
           <div className="mt-3 ml-14 text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{deal.notes}</div>

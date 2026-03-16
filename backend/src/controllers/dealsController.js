@@ -300,6 +300,35 @@ function updateStage(req, res) {
   res.json({ message: 'Stage updated' });
 }
 
+function updateLifecycle(req, res) {
+  const { lifecycle_state } = req.body;
+  if (!lifecycle_state || !['active', 'closed'].includes(lifecycle_state)) {
+    return res.status(400).json({ error: 'lifecycle_state must be "active" or "closed"' });
+  }
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only admins can change deal lifecycle state' });
+  }
+
+  const db = getDb();
+  const deal = db.prepare('SELECT * FROM deals WHERE id = ?').get(req.params.id);
+  if (!deal) return res.status(404).json({ error: 'Deal not found' });
+
+  const closedAt = lifecycle_state === 'closed' ? "datetime('now')" : 'NULL';
+  db.prepare(`UPDATE deals SET lifecycle_state = ?, closed_at = ${closedAt}, updated_at = datetime('now') WHERE id = ?`)
+    .run(lifecycle_state, req.params.id);
+
+  db.prepare(
+    "INSERT INTO activities (type, subject, description, deal_id, user_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, datetime('now'), datetime('now'))"
+  ).run(
+    lifecycle_state === 'closed' ? 'Deal closed' : 'Deal reopened',
+    lifecycle_state === 'closed' ? 'Deal manually closed by admin' : 'Deal manually reopened by admin',
+    req.params.id,
+    req.user.id
+  );
+
+  res.json({ message: `Deal ${lifecycle_state === 'closed' ? 'closed' : 'reopened'}` });
+}
+
 function remove(req, res) {
   const db = getDb();
   const result = db.prepare('DELETE FROM deals WHERE id = ?').run(req.params.id);
@@ -307,4 +336,4 @@ function remove(req, res) {
   res.json({ message: 'Deal deleted' });
 }
 
-module.exports = { getOwners, getAll, getPipeline, getById, create, update, updateStage, remove };
+module.exports = { getOwners, getAll, getPipeline, getById, create, update, updateStage, updateLifecycle, remove };
