@@ -6,11 +6,13 @@ import { Plus, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import DealSentimentBadge from '../components/deals/DealSentimentBadge';
+import { useAuth } from '../context/AuthContext';
 
 const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Website', 'Event', 'Other'];
 const emptyForm = { title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '' };
 
 export default function DealsPage() {
+  const { user } = useAuth();
   const [deals, setDeals] = useState([]);
   const [stages, setStages] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -20,17 +22,20 @@ export default function DealsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState(null);
+  const [myDeals, setMyDeals] = useState(() => localStorage.getItem('myDealsFilter') === 'true');
+  const toggleMyDeals = (v) => { localStorage.setItem('myDealsFilter', v); setMyDeals(v); };
   const navigate = useNavigate();
 
   const load = () => {
-    api.get('/deals').then((r) => setDeals(r.data));
+    const q = myDeals ? '?my_deals=true' : '';
+    api.get(`/deals${q}`).then((r) => setDeals(r.data));
     api.get('/stages').then((r) => setStages(r.data));
     api.get('/companies').then((r) => setCompanies(r.data));
     api.get('/contacts').then((r) => setContacts(r.data));
     api.get('/partners').then((r) => setPartners(r.data));
     api.get('/deals/owners').then((r) => setOwners(r.data));
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [myDeals]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -123,7 +128,25 @@ export default function DealsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Deals</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-bold text-gray-900">Deals</h2>
+          {user?.role !== 'sales_rep' && (
+            <div className="flex items-center rounded-lg border border-stone-200 bg-stone-50 p-0.5">
+              <button
+                onClick={() => toggleMyDeals(false)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${!myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+              >
+                All Deals
+              </button>
+              <button
+                onClick={() => toggleMyDeals(true)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+              >
+                My Deals
+              </button>
+            </div>
+          )}
+        </div>
         <button onClick={() => { setForm({ ...emptyForm, stage_id: stages[0]?.id || '', owner_id: owners[0]?.id || '' }); setEditing(null); setModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           <Plus size={20} /> Add Deal
         </button>

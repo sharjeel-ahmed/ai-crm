@@ -51,13 +51,17 @@ export default function FunnelDashboardPage() {
   const [showTargetForm, setShowTargetForm] = useState(false);
   const [targetForm, setTargetForm] = useState({ user_id: '', period: new Date().toISOString().slice(0, 7), target_value: '' });
   const [reps, setReps] = useState([]);
+  const [myDeals, setMyDeals] = useState(() => localStorage.getItem('myDealsFilter') === 'true');
+  const toggleMyDeals = (v) => { localStorage.setItem('myDealsFilter', v); setMyDeals(v); };
 
   useEffect(() => {
-    api.get('/reports/funnel-dashboard').then((r) => setData(r.data));
+    setData(null);
+    const q = myDeals ? '?my_deals=true' : '';
+    api.get(`/reports/funnel-dashboard${q}`).then((r) => setData(r.data));
     if (user?.role === 'admin' || user?.role === 'manager') {
       api.get('/deals/owners').then((r) => setReps(r.data));
     }
-  }, [user?.role]);
+  }, [user?.role, myDeals]);
 
   function saveTarget(e) {
     e.preventDefault();
@@ -83,7 +87,25 @@ export default function FunnelDashboardPage() {
       {/* Header */}
       <div className="overflow-hidden rounded-[2rem] border border-stone-200 bg-[radial-gradient(circle_at_top_right,#ede9fe_0,#ffffff_34%,#ecfeff_100%)] shadow-sm">
         <div className="px-6 py-7">
-          <div className="text-sm uppercase tracking-[0.28em] text-stone-500">Funnel Dashboard</div>
+          <div className="flex items-center justify-between">
+            <div className="text-sm uppercase tracking-[0.28em] text-stone-500">Funnel Dashboard</div>
+            {user?.role !== 'sales_rep' && (
+              <div className="flex items-center rounded-lg border border-stone-200 bg-stone-50 p-0.5">
+                <button
+                  onClick={() => toggleMyDeals(false)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${!myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+                >
+                  All Deals
+                </button>
+                <button
+                  onClick={() => toggleMyDeals(true)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+                >
+                  My Deals
+                </button>
+              </div>
+            )}
+          </div>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950">Pipeline flow, conversion, and forecast</h2>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-stone-600">
             Understand how deals move through stages, where they drop off, which sources convert best,

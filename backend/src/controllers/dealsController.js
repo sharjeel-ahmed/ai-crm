@@ -3,7 +3,7 @@ const { refreshDealSentiment } = require('../services/deals/sentiment');
 const { syncDealLifecycleStates, includeClosed, activeDealClause } = require('../services/deals/lifecycle');
 
 function scopeQuery(req) {
-  if (req.user.role === 'sales_rep') {
+  if (req.user.role === 'sales_rep' || req.query.my_deals === 'true') {
     return { where: 'AND d.owner_id = ?', params: [req.user.id] };
   }
   return { where: '', params: [] };

@@ -48,7 +48,7 @@ function getDateRange(req) {
 }
 
 function getScope(req, alias = 'd') {
-  if (req.user.role === 'sales_rep') {
+  if (req.user.role === 'sales_rep' || req.query.my_deals === 'true') {
     return { clause: `AND ${alias}.owner_id = ?`, params: [req.user.id] };
   }
   return { clause: '', params: [] };
@@ -335,8 +335,9 @@ function attention(req, res) {
 function dashboard(req, res) {
   const db = getDb();
   syncDealLifecycleStates(db);
-  const ownerClause = req.user.role === 'sales_rep' ? ' AND d.owner_id = ?' : '';
-  const ownerParams = req.user.role === 'sales_rep' ? [req.user.id] : [];
+  const isMyDeals = req.user.role === 'sales_rep' || req.query.my_deals === 'true';
+  const ownerClause = isMyDeals ? ' AND d.owner_id = ?' : '';
+  const ownerParams = isMyDeals ? [req.user.id] : [];
   const activeDealFilter = `COALESCE(d.lifecycle_state, 'active') != 'closed'`;
   const sevenDaysAgo = formatSqlDate(new Date(Date.now() - (6 * 86400000)));
   const thirtyDaysAgo = formatSqlDate(new Date(Date.now() - (29 * 86400000)));
@@ -414,10 +415,10 @@ function dashboard(req, res) {
     LEFT JOIN users u ON a.user_id = u.id
     LEFT JOIN deals d ON d.id = a.deal_id
     WHERE (d.id IS NULL OR COALESCE(d.lifecycle_state, 'active') != 'closed')
-      ${req.user.role === 'sales_rep' ? 'AND (d.owner_id = ? OR a.user_id = ?)' : ''}
+      ${isMyDeals ? 'AND (d.owner_id = ? OR a.user_id = ?)' : ''}
     ORDER BY a.created_at DESC
     LIMIT 8
-  `).all(...(req.user.role === 'sales_rep' ? [req.user.id, req.user.id] : []));
+  `).all(...(isMyDeals ? [req.user.id, req.user.id] : []));
 
   const leadSources = db.prepare(`
     SELECT COALESCE(NULLIF(TRIM(d.lead_source), ''), 'Unknown') AS source,
@@ -459,7 +460,7 @@ function dashboard(req, res) {
     weighted_value: Math.round(row.weighted_value || 0),
   }));
 
-  const repLeaderboard = req.user.role === 'sales_rep'
+  const repLeaderboard = isMyDeals
     ? db.prepare(`
       SELECT u.id AS user_id, u.name,
         (SELECT COUNT(*) FROM deals d JOIN deal_stages ds ON ds.id = d.stage_id WHERE d.owner_id = u.id AND ds.is_closed = 0 AND COALESCE(d.lifecycle_state, 'active') != 'closed') AS open_deals,
@@ -605,8 +606,9 @@ function dashboard(req, res) {
 function funnelDashboard(req, res) {
   const db = getDb();
   syncDealLifecycleStates(db);
-  const ownerClause = req.user.role === 'sales_rep' ? ' AND d.owner_id = ?' : '';
-  const ownerParams = req.user.role === 'sales_rep' ? [req.user.id] : [];
+  const isMyDeals = req.user.role === 'sales_rep' || req.query.my_deals === 'true';
+  const ownerClause = isMyDeals ? ' AND d.owner_id = ?' : '';
+  const ownerParams = isMyDeals ? [req.user.id] : [];
   const activeDealFilter = `COALESCE(d.lifecycle_state, 'active') != 'closed'`;
 
   // --- 1. Forecast by month (expected close dates) ---

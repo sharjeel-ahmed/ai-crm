@@ -26,6 +26,7 @@ import {
 } from 'recharts';
 import api from '../api/client';
 import { formatDate } from '../utils/dateFormat';
+import { useAuth } from '../context/AuthContext';
 
 const sentimentStyles = {
   positive: 'bg-emerald-100 text-emerald-700',
@@ -85,11 +86,16 @@ const fmt = (n) => new Intl.NumberFormat('en-IN', {
 }).format(n || 0);
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const [data, setData] = useState(null);
+  const [myDeals, setMyDeals] = useState(() => localStorage.getItem('myDealsFilter') === 'true');
+  const toggleMyDeals = (v) => { localStorage.setItem('myDealsFilter', v); setMyDeals(v); };
 
   useEffect(() => {
-    api.get('/reports/dashboard').then((response) => setData(response.data));
-  }, []);
+    setData(null);
+    const q = myDeals ? '?my_deals=true' : '';
+    api.get(`/reports/dashboard${q}`).then((response) => setData(response.data));
+  }, [myDeals]);
 
   if (!data) {
     return <div className="rounded-[2rem] border border-stone-200 bg-white p-12 text-center text-stone-500">Loading dashboard...</div>;
@@ -102,7 +108,25 @@ export default function DashboardPage() {
       <div className="overflow-hidden rounded-[2rem] border border-stone-200 bg-[radial-gradient(circle_at_top_left,#fff7ed_0,#ffffff_34%,#ecfeff_100%)] shadow-sm">
         <div className="grid gap-8 px-6 py-7 lg:grid-cols-[1.1fr_0.9fr]">
           <div>
-            <div className="text-sm uppercase tracking-[0.28em] text-stone-500">Management Dashboard</div>
+            <div className="flex items-center justify-between">
+              <div className="text-sm uppercase tracking-[0.28em] text-stone-500">Management Dashboard</div>
+              {user?.role !== 'sales_rep' && (
+                <div className="flex items-center rounded-lg border border-stone-200 bg-stone-50 p-0.5">
+                  <button
+                    onClick={() => toggleMyDeals(false)}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${!myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+                  >
+                    All Deals
+                  </button>
+                  <button
+                    onClick={() => toggleMyDeals(true)}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+                  >
+                    My Deals
+                  </button>
+                </div>
+              )}
+            </div>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-950">A live operating view of revenue motion</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-stone-600">
               Use this page for the current state of the business: open pipeline quality, near-term execution,

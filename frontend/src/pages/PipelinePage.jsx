@@ -6,6 +6,7 @@ import Modal from '../components/common/Modal';
 import toast from 'react-hot-toast';
 import { IndianRupee, ChevronLeft, ChevronRight, Clock, Pencil, Archive } from 'lucide-react';
 import DealSentimentBadge from '../components/deals/DealSentimentBadge';
+import { useAuth } from '../context/AuthContext';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Website', 'Event', 'Other'];
@@ -71,6 +72,7 @@ function DealCard({ deal, index, onClickDeal, onEditDeal }) {
 }
 
 export default function PipelinePage() {
+  const { user } = useAuth();
   const [pipeline, setPipeline] = useState([]);
   const scrollRef = useRef(null);
   const topScrollRef = useRef(null);
@@ -87,9 +89,14 @@ export default function PipelinePage() {
   const [partners, setPartners] = useState([]);
   const [owners, setOwners] = useState([]);
   const [form, setForm] = useState({ title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '' });
+  const [myDeals, setMyDeals] = useState(() => localStorage.getItem('myDealsFilter') === 'true');
+  const toggleMyDeals = (v) => { localStorage.setItem('myDealsFilter', v); setMyDeals(v); };
 
-  const load = () => api.get('/deals/pipeline').then((r) => setPipeline(r.data));
-  useEffect(() => { load(); }, []);
+  const load = () => {
+    const q = myDeals ? '?my_deals=true' : '';
+    api.get(`/deals/pipeline${q}`).then((r) => setPipeline(r.data));
+  };
+  useEffect(() => { load(); }, [myDeals]);
 
   // Filter Won stage to only show deals from last 30 days
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
@@ -230,7 +237,25 @@ export default function PipelinePage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Pipeline</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-bold text-gray-900">Pipeline</h2>
+          {user?.role !== 'sales_rep' && (
+            <div className="flex items-center rounded-lg border border-stone-200 bg-stone-50 p-0.5">
+              <button
+                onClick={() => toggleMyDeals(false)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${!myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+              >
+                All Deals
+              </button>
+              <button
+                onClick={() => toggleMyDeals(true)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${myDeals ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+              >
+                My Deals
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={() => navigate('/deals/closed')}
           className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
