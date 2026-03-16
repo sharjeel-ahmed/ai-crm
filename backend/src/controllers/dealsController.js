@@ -329,6 +329,47 @@ function updateLifecycle(req, res) {
   res.json({ message: `Deal ${lifecycle_state === 'closed' ? 'closed' : 'reopened'}` });
 }
 
+function merge(req, res) {
+  const { source_deal_id } = req.body;
+  const targetDealId = parseInt(req.params.id);
+  if (!source_deal_id) return res.status(400).json({ error: 'source_deal_id is required' });
+  const sourceDealId = parseInt(source_deal_id);
+  if (sourceDealId === targetDealId) return res.status(400).json({ error: 'Cannot merge a deal into itself' });
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Only admins can merge deals' });
+
+  const db = getDb();
+  const target = db.prepare('SELECT * FROM deals WHERE id = ?').get(targetDealId);
+  const source = db.prepare('SELECT d.*, ds.name as stage_name FROM deals d LEFT JOIN deal_stages ds ON ds.id = d.stage_id WHERE d.id = ?').get(sourceDealId);
+  if (!target) return res.status(404).json({ error: 'Target deal not found' });
+  if (!source) return res.status(404).json({ error: 'Source deal not found' });
+
+  // Move all activities from source to target
+  db.prepare('UPDATE activities SET deal_id = ? WHERE deal_id = ?').run(targetDealId, sourceDealId);
+
+  // Take the higher value if target has no value
+  if ((!target.value || target.value === 0) && source.value > 0) {
+    db.prepare('UPDATE deals SET value = ? WHERE id = ?').run(source.value, targetDealId);
+  }
+
+  // Fill in missing fields on target from source
+  const fillFields = ['company_id', 'contact_id', 'partner_id', 'lead_source', 'expected_close', 'notes'];
+  for (const field of fillFields) {
+    if (!target[field] && source[field]) {
+      db.prepare(`UPDATE deals SET ${field} = ? WHERE id = ?`).run(source[field], targetDealId);
+    }
+  }
+
+  // Log the merge as an activity
+  db.prepare(
+    "INSERT INTO activities (type, subject, description, deal_id, user_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, datetime('now'), datetime('now'))"
+  ).run('Deals merged', `Merged deal "${source.title}" (${source.stage_name || 'Unknown'} stage) into this deal`, targetDealId, req.user.id);
+
+  // Delete the source deal
+  db.prepare('DELETE FROM deals WHERE id = ?').run(sourceDealId);
+
+  res.json({ message: `Deal "${source.title}" merged into "${target.title}"` });
+}
+
 function remove(req, res) {
   const db = getDb();
   const result = db.prepare('DELETE FROM deals WHERE id = ?').run(req.params.id);
@@ -336,4 +377,4 @@ function remove(req, res) {
   res.json({ message: 'Deal deleted' });
 }
 
-module.exports = { getOwners, getAll, getPipeline, getById, create, update, updateStage, updateLifecycle, remove };
+module.exports = { getOwners, getAll, getPipeline, getById, create, update, updateStage, updateLifecycle, merge, remove };

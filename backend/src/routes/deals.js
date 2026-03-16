@@ -12,6 +12,7 @@ router.post('/', c.create);
 router.put('/:id', c.update);
 router.patch('/:id/stage', c.updateStage);
 router.patch('/:id/lifecycle', c.updateLifecycle);
+router.post('/:id/merge', c.merge);
 router.delete('/:id', c.remove);
 
 module.exports = router;

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import Modal from '../components/common/Modal';
 import { formatDate, formatDateTime } from '../utils/dateFormat';
-import { ArrowLeft, Briefcase, Building2, Users, CalendarCheck, IndianRupee, Phone, Mail as MailIcon, MailOpen, Sparkles, ChevronDown, Pencil, Clock, Archive, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Briefcase, Building2, Users, CalendarCheck, IndianRupee, Phone, Mail as MailIcon, MailOpen, Sparkles, ChevronDown, Pencil, Clock, Archive, RotateCcw, Merge, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DealSentimentBadge from '../components/deals/DealSentimentBadge';
 import { useAuth } from '../context/AuthContext';
@@ -60,6 +60,10 @@ export default function DealDetailPage() {
   const [partners, setPartners] = useState([]);
   const [owners, setOwners] = useState([]);
   const [form, setForm] = useState({ title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '' });
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [mergeSearch, setMergeSearch] = useState('');
+  const [mergeDeals, setMergeDeals] = useState([]);
+  const [selectedMergeDeal, setSelectedMergeDeal] = useState(null);
 
   const loadDeal = (allActivities = false) => {
     return api.get(`/deals/${id}${allActivities ? '?all_activities=1' : ''}`)
@@ -135,6 +139,28 @@ export default function DealDetailPage() {
     loadDeal(true).then(() => setShowAll(true));
   };
 
+  const openMergeModal = () => {
+    api.get('/deals?include_closed=1').then((r) => {
+      setMergeDeals(r.data.filter((d) => d.id !== parseInt(id)));
+      setMergeSearch('');
+      setSelectedMergeDeal(null);
+      setMergeModalOpen(true);
+    });
+  };
+
+  const handleMerge = async () => {
+    if (!selectedMergeDeal) return;
+    if (!confirm(`Merge "${selectedMergeDeal.title}" into "${deal.title}"? This will move all activities and delete "${selectedMergeDeal.title}".`)) return;
+    try {
+      await api.post(`/deals/${id}/merge`, { source_deal_id: selectedMergeDeal.id });
+      toast.success(`Merged "${selectedMergeDeal.title}" into this deal`);
+      setMergeModalOpen(false);
+      loadDeal(showAll);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error');
+    }
+  };
+
   const handleToggleLifecycle = async () => {
     const newState = deal.lifecycle_state === 'closed' ? 'active' : 'closed';
     const action = newState === 'closed' ? 'close' : 'reopen';
@@ -190,12 +216,20 @@ export default function DealDetailPage() {
               <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-stone-100 text-stone-600">Closed</span>
             )}
             {user?.role === 'admin' && (
-              <button
-                onClick={handleToggleLifecycle}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg ${deal.lifecycle_state === 'closed' ? 'border border-green-300 text-green-700 hover:bg-green-50' : 'border border-stone-300 text-stone-700 hover:bg-stone-50'}`}
-              >
-                {deal.lifecycle_state === 'closed' ? <><RotateCcw size={16} /> Reopen</> : <><Archive size={16} /> Close Deal</>}
-              </button>
+              <>
+                <button
+                  onClick={openMergeModal}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-50"
+                >
+                  <Merge size={16} /> Merge
+                </button>
+                <button
+                  onClick={handleToggleLifecycle}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg ${deal.lifecycle_state === 'closed' ? 'border border-green-300 text-green-700 hover:bg-green-50' : 'border border-stone-300 text-stone-700 hover:bg-stone-50'}`}
+                >
+                  {deal.lifecycle_state === 'closed' ? <><RotateCcw size={16} /> Reopen</> : <><Archive size={16} /> Close Deal</>}
+                </button>
+              </>
             )}
             <button onClick={openEditModal} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
               <Pencil size={16} /> Edit
@@ -378,6 +412,69 @@ export default function DealDetailPage() {
             <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
           </div>
         </form>
+      </Modal>
+
+      {/* Merge Modal */}
+      <Modal isOpen={mergeModalOpen} onClose={() => setMergeModalOpen(false)} title="Merge Deal Into This One" size="lg">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Select a deal to merge <strong>into "{deal?.title}"</strong>. All activities will be moved to this deal and the selected deal will be deleted.
+          </p>
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search deals..."
+              value={mergeSearch}
+              onChange={(e) => setMergeSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="max-h-72 overflow-y-auto border border-gray-200 rounded-lg divide-y">
+            {mergeDeals
+              .filter((d) => {
+                const q = mergeSearch.toLowerCase();
+                return !q || d.title.toLowerCase().includes(q) || (d.company_name || '').toLowerCase().includes(q);
+              })
+              .map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => setSelectedMergeDeal(d)}
+                  className={`w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors ${selectedMergeDeal?.id === d.id ? 'bg-blue-50 ring-1 ring-inset ring-blue-300' : ''}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-sm text-gray-900">{d.title}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {d.company_name || 'No company'} &middot; {d.stage_name} &middot; {fmt(d.value)}
+                        {d.owner_name && <> &middot; {d.owner_name}</>}
+                      </div>
+                    </div>
+                    {selectedMergeDeal?.id === d.id && (
+                      <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">Selected</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            {mergeDeals.filter((d) => {
+              const q = mergeSearch.toLowerCase();
+              return !q || d.title.toLowerCase().includes(q) || (d.company_name || '').toLowerCase().includes(q);
+            }).length === 0 && (
+              <div className="px-4 py-8 text-center text-sm text-gray-400">No deals found</div>
+            )}
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setMergeModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button
+              type="button"
+              onClick={handleMerge}
+              disabled={!selectedMergeDeal}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Merge Deal
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
