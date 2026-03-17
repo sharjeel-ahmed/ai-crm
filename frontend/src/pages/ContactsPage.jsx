@@ -132,7 +132,11 @@ export default function ContactsPage() {
       render: (row) => (
         <div className="flex gap-2">
           <button onClick={(e) => { e.stopPropagation(); handleEdit(row); }} className="text-blue-600 hover:text-blue-800" title="Edit"><Pencil size={16} /></button>
-          <button onClick={(e) => { e.stopPropagation(); setConvertContact(row); setPartnerType(''); setPartnerName(row.company_name || `${row.first_name} ${row.last_name}`); setSelectedPartnerId(''); setConvertMode('existing'); api.get('/partners').then(r => setPartners(r.data)); setConvertModalOpen(true); }} className="text-indigo-600 hover:text-indigo-800" title="Convert to Partner"><Handshake size={16} /></button>
+          {row.partner_id ? (
+            <span className="text-gray-300 cursor-default" title="Partner"><Handshake size={16} /></span>
+          ) : (
+            <button onClick={(e) => { e.stopPropagation(); setConvertContact(row); setPartnerType(''); setPartnerName(row.company_name || `${row.first_name} ${row.last_name}`); setSelectedPartnerId(''); setConvertMode('existing'); api.get('/partners').then(r => setPartners(r.data)); setConvertModalOpen(true); }} className="text-indigo-600 hover:text-indigo-800" title="Convert to Partner"><Handshake size={16} /></button>
+          )}
           {row.email && (
             <button onClick={(e) => { e.stopPropagation(); handleIgnore(row); }} className="text-gray-500 hover:text-gray-700" title="Add to ignore list"><EyeOff size={16} /></button>
           )}
