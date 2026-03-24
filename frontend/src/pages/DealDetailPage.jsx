@@ -215,7 +215,7 @@ export default function DealDetailPage() {
             {deal.lifecycle_state === 'closed' && (
               <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-stone-100 text-stone-600">Closed</span>
             )}
-            {user?.role === 'admin' && (
+            {(user?.role === 'admin' || user?.role === 'manager') && (
               <>
                 <button
                   onClick={openMergeModal}

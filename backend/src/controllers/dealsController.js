@@ -311,8 +311,8 @@ function updateLifecycle(req, res) {
   if (!lifecycle_state || !['active', 'closed'].includes(lifecycle_state)) {
     return res.status(400).json({ error: 'lifecycle_state must be "active" or "closed"' });
   }
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Only admins can change deal lifecycle state' });
+  if (req.user.role !== 'admin' && req.user.role !== 'manager') {
+    return res.status(403).json({ error: 'Only admins and managers can change deal lifecycle state' });
   }
 
   const db = getDb();
@@ -341,7 +341,7 @@ function merge(req, res) {
   if (!source_deal_id) return res.status(400).json({ error: 'source_deal_id is required' });
   const sourceDealId = parseInt(source_deal_id);
   if (sourceDealId === targetDealId) return res.status(400).json({ error: 'Cannot merge a deal into itself' });
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Only admins can merge deals' });
+  if (req.user.role !== 'admin' && req.user.role !== 'manager') return res.status(403).json({ error: 'Only admins and managers can merge deals' });
 
   const db = getDb();
   const target = db.prepare('SELECT * FROM deals WHERE id = ?').get(targetDealId);
