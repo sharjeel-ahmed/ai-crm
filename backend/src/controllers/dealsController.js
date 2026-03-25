@@ -3,16 +3,31 @@ const { refreshDealSentiment } = require('../services/deals/sentiment');
 const { syncDealLifecycleStates, includeClosed, activeDealClause } = require('../services/deals/lifecycle');
 
 function scopeQuery(req) {
+  let where = '';
+  const params = [];
+
   if (req.user.role === 'sales_rep') {
-    return { where: 'AND d.owner_id = ?', params: [req.user.id] };
+    where += ' AND d.owner_id = ?';
+    params.push(req.user.id);
+  } else if (req.query.my_deals === 'true') {
+    where += ' AND d.owner_id = ?';
+    params.push(req.user.id);
+  } else if (req.query.owner_id) {
+    where += ' AND d.owner_id = ?';
+    params.push(parseInt(req.query.owner_id));
   }
-  if (req.query.my_deals === 'true') {
-    return { where: 'AND d.owner_id = ?', params: [req.user.id] };
+
+  if (req.query.stage_id) {
+    where += ' AND d.stage_id = ?';
+    params.push(parseInt(req.query.stage_id));
   }
-  if (req.query.owner_id) {
-    return { where: 'AND d.owner_id = ?', params: [parseInt(req.query.owner_id)] };
+
+  if (req.query.lead_source) {
+    where += ' AND d.lead_source = ?';
+    params.push(req.query.lead_source);
   }
-  return { where: '', params: [] };
+
+  return { where, params };
 }
 
 function getOwnerById(db, ownerId) {

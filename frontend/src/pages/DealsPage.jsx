@@ -23,19 +23,28 @@ export default function DealsPage() {
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState(null);
   const [dealFilter, setDealFilter] = useState(() => localStorage.getItem('dealFilter') || 'all');
+  const [stageFilter, setStageFilter] = useState(() => localStorage.getItem('dealStageFilter') || 'all');
+  const [sourceFilter, setSourceFilter] = useState(() => localStorage.getItem('dealSourceFilter') || 'all');
   const changeDealFilter = (v) => { localStorage.setItem('dealFilter', v); setDealFilter(v); };
+  const changeStageFilter = (v) => { localStorage.setItem('dealStageFilter', v); setStageFilter(v); };
+  const changeSourceFilter = (v) => { localStorage.setItem('dealSourceFilter', v); setSourceFilter(v); };
   const navigate = useNavigate();
 
   const load = () => {
-    const params = dealFilter === 'all' ? '' : dealFilter === 'mine' ? '?my_deals=true' : `?owner_id=${dealFilter}`;
-    api.get(`/deals${params}`).then((r) => setDeals(r.data));
+    const qp = new URLSearchParams();
+    if (dealFilter === 'mine') qp.set('my_deals', 'true');
+    else if (dealFilter !== 'all') qp.set('owner_id', dealFilter);
+    if (stageFilter !== 'all') qp.set('stage_id', stageFilter);
+    if (sourceFilter !== 'all') qp.set('lead_source', sourceFilter);
+    const qs = qp.toString();
+    api.get(`/deals${qs ? `?${qs}` : ''}`).then((r) => setDeals(r.data));
     api.get('/stages').then((r) => setStages(r.data));
     api.get('/companies').then((r) => setCompanies(r.data));
     api.get('/contacts').then((r) => setContacts(r.data));
     api.get('/partners').then((r) => setPartners(r.data));
     api.get('/deals/owners').then((r) => setOwners(r.data));
   };
-  useEffect(() => { load(); }, [dealFilter]);
+  useEffect(() => { load(); }, [dealFilter, stageFilter, sourceFilter]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -136,13 +145,29 @@ export default function DealsPage() {
               onChange={(e) => changeDealFilter(e.target.value)}
               className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">All Deals</option>
+              <option value="all">All Owners</option>
               <option value="mine">My Deals</option>
               {owners.filter((o) => o.id !== user?.id).map((o) => (
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
             </select>
           )}
+          <select
+            value={stageFilter}
+            onChange={(e) => changeStageFilter(e.target.value)}
+            className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Stages</option>
+            {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <select
+            value={sourceFilter}
+            onChange={(e) => changeSourceFilter(e.target.value)}
+            className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Sources</option>
+            {leadSources.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
         </div>
         <button onClick={() => { setForm({ ...emptyForm, stage_id: stages[0]?.id || '', owner_id: owners[0]?.id || '' }); setEditing(null); setModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           <Plus size={20} /> Add Deal
