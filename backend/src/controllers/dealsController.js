@@ -2,6 +2,23 @@ const { getDb } = require('../db/connection');
 const { refreshDealSentiment } = require('../services/deals/sentiment');
 const { syncDealLifecycleStates, includeClosed, activeDealClause } = require('../services/deals/lifecycle');
 
+function parseDbDate(value) {
+  if (!value) return null;
+  return new Date(typeof value === 'string' ? value.replace(' ', 'T') : value);
+}
+
+function withDaysInStage(deal) {
+  const stageDate = parseDbDate(deal.stage_changed_at || deal.updated_at || deal.created_at);
+  const daysInStage = !stageDate || Number.isNaN(stageDate.getTime())
+    ? 0
+    : Math.max(0, Math.floor((Date.now() - stageDate.getTime()) / 86400000));
+
+  return {
+    ...deal,
+    days_in_stage: daysInStage,
+  };
+}
+
 function scopeQuery(req) {
   let where = '';
   const params = [];
@@ -81,7 +98,7 @@ function getAll(req, res) {
     LEFT JOIN partners p ON d.partner_id = p.id
     WHERE 1=1 ${scope.where}${lifecycleClause}
     ORDER BY d.created_at DESC
-  `).all(...scope.params).map((deal) => refreshDealSentiment(db, deal));
+  `).all(...scope.params).map((deal) => withDaysInStage(refreshDealSentiment(db, deal)));
   res.json(deals);
 }
 
@@ -103,7 +120,7 @@ function getPipeline(req, res) {
     LEFT JOIN partners p ON d.partner_id = p.id
     WHERE 1=1 ${scope.where}${lifecycleClause}
     ORDER BY d.position
-  `).all(...scope.params).map((deal) => refreshDealSentiment(db, deal));
+  `).all(...scope.params).map((deal) => withDaysInStage(refreshDealSentiment(db, deal)));
 
   const pipeline = stages.map(stage => ({
     ...stage,
@@ -128,7 +145,7 @@ function getById(req, res) {
     WHERE d.id = ?
   `).get(req.params.id);
   if (!dealRow) return res.status(404).json({ error: 'Deal not found' });
-  const deal = refreshDealSentiment(db, dealRow);
+  const deal = withDaysInStage(refreshDealSentiment(db, dealRow));
 
   // Get contacts linked to the same company
   const contacts = deal.company_id

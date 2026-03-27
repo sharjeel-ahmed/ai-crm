@@ -8,26 +8,10 @@ import { IndianRupee, ChevronLeft, ChevronRight, Clock, Calendar, Pencil, Archiv
 import DealSentimentBadge from '../components/deals/DealSentimentBadge';
 import { useAuth } from '../context/AuthContext';
 import usePageTitle from '../hooks/usePageTitle';
+import { formatStageAge, stageAgeColor } from '../utils/stageAge';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Website', 'Event', 'Other'];
-
-function stageAge(stageChangedAt) {
-  if (!stageChangedAt) return null;
-  const diff = Date.now() - new Date(stageChangedAt).getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  if (days === 0) return 'Today';
-  if (days === 1) return '1 day';
-  return `${days} days`;
-}
-
-function stageAgeColor(stageChangedAt) {
-  if (!stageChangedAt) return 'text-gray-400';
-  const days = Math.floor((Date.now() - new Date(stageChangedAt).getTime()) / (1000 * 60 * 60 * 24));
-  if (days <= 7) return 'text-green-500';
-  if (days <= 14) return 'text-yellow-500';
-  return 'text-red-500';
-}
 
 function dealAge(createdAt) {
   if (!createdAt) return null;
@@ -39,7 +23,7 @@ function dealAge(createdAt) {
 }
 
 function DealCard({ deal, index, onClickDeal, onEditDeal }) {
-  const sAge = stageAge(deal.stage_changed_at);
+  const sAge = formatStageAge(deal.days_in_stage);
   const dAge = dealAge(deal.created_at);
   const sentimentBorder = deal.sentiment === 'negative' ? 'border-l-rose-400' : deal.sentiment === 'positive' ? 'border-l-emerald-400' : 'border-l-stone-300';
   return (
@@ -98,7 +82,7 @@ function DealCard({ deal, index, onClickDeal, onEditDeal }) {
                 </span>
               )}
               {sAge && (
-                <span className={`flex items-center gap-1 text-[11px] font-medium ${stageAgeColor(deal.stage_changed_at)}`} title="Time in current stage">
+                <span className={`flex items-center gap-1 text-[11px] font-medium ${stageAgeColor(deal.days_in_stage)}`} title="Time in current stage">
                   <Clock size={10} />Stage: {sAge}
                 </span>
               )}
@@ -268,7 +252,7 @@ export default function PipelinePage() {
       const deal = prev.flatMap((s) => s.deals).find((d) => d.id === dealId);
       const targetStage = updated.find((s) => s.id === newStageId);
       if (deal && targetStage) {
-        const updatedDeal = { ...deal, stage_id: newStageId, stage_changed_at: new Date().toISOString() };
+        const updatedDeal = { ...deal, stage_id: newStageId, stage_changed_at: new Date().toISOString(), days_in_stage: 0 };
         targetStage.deals.splice(destination.index, 0, updatedDeal);
       }
       return updated;

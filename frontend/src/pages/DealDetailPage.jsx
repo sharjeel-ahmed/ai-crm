@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import DealSentimentBadge from '../components/deals/DealSentimentBadge';
 import { useAuth } from '../context/AuthContext';
 import usePageTitle from '../hooks/usePageTitle';
+import { formatStageAge, stageAgeColor } from '../utils/stageAge';
 
 const stageColors = {
   Lead: 'bg-gray-100 text-gray-700',
@@ -28,24 +29,6 @@ const activityTypeConfig = {
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Website', 'Event', 'Other'];
-
-function stageAge(stageChangedAt) {
-  if (!stageChangedAt) return null;
-  const diff = Date.now() - new Date(stageChangedAt).getTime();
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  if (days === 0) return 'Today';
-  if (days === 1) return '1 day';
-  return `${days} days`;
-}
-
-function stageAgeColor(stageChangedAt) {
-  if (!stageChangedAt) return 'text-gray-400';
-  const days = Math.floor((Date.now() - new Date(stageChangedAt).getTime()) / (1000 * 60 * 60 * 24));
-  if (days <= 7) return 'text-green-500';
-  if (days <= 14) return 'text-yellow-500';
-  return 'text-red-500';
-}
-
 
 export default function DealDetailPage() {
   usePageTitle('Deal Details');
@@ -135,6 +118,8 @@ export default function DealDetailPage() {
   if (loading) return <div className="text-center py-12 text-gray-500">Loading...</div>;
   if (!deal) return null;
 
+  const dealStageAge = formatStageAge(deal.days_in_stage);
+
   const activities = deal.activities || [];
   const totalActivities = deal.total_activities || activities.length;
   const displayedActivities = showAll ? activities : activities;
@@ -214,9 +199,9 @@ export default function DealDetailPage() {
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${stageColors[deal.stage_name] || 'bg-gray-100 text-gray-700'}`}>
                 {deal.stage_name}
               </span>
-              {stageAge(deal.stage_changed_at) && (
-                <span className={`flex items-center gap-1 text-xs ${stageAgeColor(deal.stage_changed_at)}`} title="Time in current stage">
-                  <Clock size={13} />{stageAge(deal.stage_changed_at)} in stage
+              {dealStageAge && (
+                <span className={`flex items-center gap-1 text-xs ${stageAgeColor(deal.days_in_stage)}`} title="Time in current stage">
+                  <Clock size={13} />{dealStageAge} in stage
                 </span>
               )}
               <DealSentimentBadge sentiment={deal.sentiment} />
