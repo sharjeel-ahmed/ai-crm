@@ -427,6 +427,20 @@ function dashboard(req, res) {
     LIMIT 8
   `).all(...(isScoped ? [scopedUserId, scopedUserId] : []));
 
+  const nowIso = new Date().toISOString();
+  const upcomingActivities = db.prepare(`
+    SELECT a.id, a.type, a.subject, a.due_date, a.description, u.name AS user_name, d.title AS deal_title,
+      ct.first_name || ' ' || ct.last_name as contact_name
+    FROM activities a
+    LEFT JOIN users u ON a.user_id = u.id
+    LEFT JOIN deals d ON d.id = a.deal_id
+    LEFT JOIN contacts ct ON a.contact_id = ct.id
+    WHERE a.due_date IS NOT NULL AND a.due_date > ? AND a.is_completed = 0
+      AND a.user_id = ?
+    ORDER BY a.due_date ASC
+    LIMIT 10
+  `).all(nowIso, req.user.id);
+
   const leadSources = db.prepare(`
     SELECT COALESCE(NULLIF(TRIM(d.lead_source), ''), 'Unknown') AS source,
            COUNT(*) AS lead_count,
@@ -607,6 +621,7 @@ function dashboard(req, res) {
     repLeaderboard,
     attention,
     recentActivities,
+    upcomingActivities,
   });
 }
 
@@ -792,6 +807,32 @@ function funnelDashboard(req, res) {
     };
   });
 
+  const stageHealth = db.prepare(`
+    SELECT ds.name AS stage,
+           ds.display_order,
+           COALESCE(ds.win_probability, 50) AS win_probability,
+           COUNT(d.id) AS deal_count,
+           COALESCE(SUM(d.value), 0) AS deal_value,
+           COALESCE(SUM(d.value * COALESCE(ds.win_probability, 50) / 100.0), 0) AS weighted_value,
+           COALESCE(AVG(julianday('now') - julianday(COALESCE(d.stage_changed_at, d.updated_at, d.created_at))), 0) AS avg_days_in_stage,
+           COALESCE(MAX(julianday('now') - julianday(COALESCE(d.stage_changed_at, d.updated_at, d.created_at))), 0) AS max_days_in_stage,
+           SUM(CASE WHEN d.sentiment = 'negative' THEN 1 ELSE 0 END) AS negative_deals
+    FROM deal_stages ds
+    LEFT JOIN deals d
+      ON d.stage_id = ds.id
+     AND ${activeDealFilter}
+     AND ds.is_closed = 0
+     ${ownerClause ? 'AND d.owner_id = ?' : ''}
+    WHERE ds.is_closed = 0
+    GROUP BY ds.id
+    ORDER BY ds.display_order
+  `).all(...ownerParams).map((row) => ({
+    ...row,
+    avg_days_in_stage: Math.round(row.avg_days_in_stage || 0),
+    max_days_in_stage: Math.round(row.max_days_in_stage || 0),
+    weighted_value: Math.round(row.weighted_value || 0),
+  }));
+
   res.json({
     forecastByMonth,
     closingSoon,
@@ -806,6 +847,7 @@ function funnelDashboard(req, res) {
     },
     quotaTracking,
     currentMonth,
+    stageHealth,
   });
 }
 

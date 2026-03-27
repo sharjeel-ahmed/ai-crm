@@ -84,4 +84,22 @@ function remove(req, res) {
   res.json({ message: 'Activity deleted' });
 }
 
-module.exports = { getAll, getById, create, update, remove };
+function getUpcoming(req, res) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const activities = db.prepare(`
+    SELECT a.*, u.name as user_name, d.title as deal_title,
+      ct.first_name || ' ' || ct.last_name as contact_name
+    FROM activities a
+    LEFT JOIN users u ON a.user_id = u.id
+    LEFT JOIN deals d ON a.deal_id = d.id
+    LEFT JOIN contacts ct ON a.contact_id = ct.id
+    WHERE a.due_date IS NOT NULL AND a.due_date > ? AND a.is_completed = 0
+      AND a.user_id = ?
+    ORDER BY a.due_date ASC
+    LIMIT ?
+  `).all(now, req.user.id, parseInt(req.query.limit) || 10);
+  res.json(activities);
+}
+
+module.exports = { getAll, getById, create, update, remove, getUpcoming };

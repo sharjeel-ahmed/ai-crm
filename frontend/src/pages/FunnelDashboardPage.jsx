@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Calendar,
   Filter,
+  Gauge,
   Megaphone,
   Plus,
   Save,
@@ -22,6 +23,7 @@ import {
 import api from '../api/client';
 import { formatDate } from '../utils/dateFormat';
 import { useAuth } from '../context/AuthContext';
+import usePageTitle from '../hooks/usePageTitle';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -46,6 +48,7 @@ function SectionTitle({ icon: Icon, iconTone, title, text }) {
 const barColors = ['#0f766e', '#0369a1', '#7c3aed', '#ea580c', '#dc2626', '#525252'];
 
 export default function FunnelDashboardPage() {
+  usePageTitle('Funnel Dashboard');
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [showTargetForm, setShowTargetForm] = useState(false);
@@ -80,7 +83,8 @@ export default function FunnelDashboardPage() {
     return <div className="rounded-[2rem] border border-stone-200 bg-white p-12 text-center text-stone-500">Loading funnel dashboard...</div>;
   }
 
-  const { forecastByMonth, closingSoon, conversionRates, funnelStages, leadSourceConversion, lostDeals, quotaTracking, currentMonth } = data;
+  const { forecastByMonth, closingSoon, conversionRates, funnelStages, leadSourceConversion, lostDeals, quotaTracking, currentMonth, stageHealth } = data;
+  const stageBarColors = ['#0f766e', '#0369a1', '#7c3aed', '#ea580c', '#dc2626', '#525252'];
 
   return (
     <div className="space-y-6">
@@ -108,6 +112,61 @@ export default function FunnelDashboardPage() {
             Understand how deals move through stages, where they drop off, which sources convert best,
             and whether your team is on track to hit targets.
           </p>
+        </div>
+      </div>
+
+      {/* Stage Health */}
+      <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
+        <SectionTitle
+          icon={Gauge}
+          iconTone="bg-cyan-50 text-cyan-700"
+          title="Stage Health"
+          text="Watch where value is stacking up and where cycle time is stretching."
+        />
+        <div className="mt-6 h-[320px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={stageHealth}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="stage" />
+              <YAxis tickFormatter={(value) => `₹${Math.round(value / 1000)}k`} />
+              <Tooltip
+                formatter={(value, name) => [name === 'deal_value' ? fmt(value) : value, name === 'deal_value' ? 'Pipeline Value' : 'Deals']}
+              />
+              <Bar dataKey="deal_value" radius={[10, 10, 0, 0]}>
+                {(stageHealth || []).map((_, index) => <Cell key={index} fill={stageBarColors[index % stageBarColors.length]} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {(stageHealth || []).map((stage) => (
+            <div key={stage.stage} className="rounded-2xl border border-stone-200 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-stone-900">{stage.stage}</span>
+                    <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500">{stage.win_probability}%</span>
+                  </div>
+                  <div className="mt-1 text-xs text-stone-500">{stage.deal_count} active deal(s)</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-semibold text-stone-900">{fmt(stage.deal_value)}</div>
+                  <div className="text-xs text-teal-600">Wtd: {fmt(stage.weighted_value)}</div>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between text-xs text-stone-600">
+                <span>{stage.avg_days_in_stage}d avg age</span>
+                <span>{stage.negative_deals} neg. sentiment</span>
+                <span>{stage.max_days_in_stage}d max</span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-100">
+                <div
+                  className={`${stage.avg_days_in_stage >= 21 ? 'bg-rose-500' : stage.avg_days_in_stage >= 10 ? 'bg-amber-500' : 'bg-emerald-500'} h-full rounded-full`}
+                  style={{ width: `${Math.min(100, Math.max(10, stage.avg_days_in_stage * 3))}%` }}
+                />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

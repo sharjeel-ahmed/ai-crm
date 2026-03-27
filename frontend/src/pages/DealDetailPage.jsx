@@ -3,10 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import Modal from '../components/common/Modal';
 import { formatDate, formatDateTime } from '../utils/dateFormat';
-import { ArrowLeft, Briefcase, Building2, Users, CalendarCheck, IndianRupee, Phone, Mail as MailIcon, MailOpen, Sparkles, ChevronDown, Pencil, Clock, Archive, RotateCcw, Merge, Search } from 'lucide-react';
+import { ArrowLeft, Briefcase, Building2, Users, CalendarCheck, IndianRupee, Phone, Mail as MailIcon, MailOpen, Sparkles, ChevronDown, Pencil, Clock, Archive, RotateCcw, Merge, Search, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DealSentimentBadge from '../components/deals/DealSentimentBadge';
 import { useAuth } from '../context/AuthContext';
+import usePageTitle from '../hooks/usePageTitle';
 
 const stageColors = {
   Lead: 'bg-gray-100 text-gray-700',
@@ -47,6 +48,7 @@ function stageAgeColor(stageChangedAt) {
 
 
 export default function DealDetailPage() {
+  usePageTitle('Deal Details');
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -64,6 +66,9 @@ export default function DealDetailPage() {
   const [mergeSearch, setMergeSearch] = useState('');
   const [mergeDeals, setMergeDeals] = useState([]);
   const [selectedMergeDeal, setSelectedMergeDeal] = useState(null);
+  const [activityModalOpen, setActivityModalOpen] = useState(false);
+  const [activityForm, setActivityForm] = useState({ type: 'call', subject: '', description: '', due_date: '' });
+  const activityContacts = deal?.contacts || [];
 
   const loadDeal = (allActivities = false) => {
     return api.get(`/deals/${id}${allActivities ? '?all_activities=1' : ''}`)
@@ -174,6 +179,24 @@ export default function DealDetailPage() {
     }
   };
 
+  const handleActivitySubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/activities', {
+        ...activityForm,
+        deal_id: parseInt(id),
+        contact_id: activityForm.contact_id || null,
+        due_date: activityForm.due_date || null,
+      });
+      toast.success('Activity created');
+      setActivityModalOpen(false);
+      setActivityForm({ type: 'call', subject: '', description: '', due_date: '', contact_id: '' });
+      loadDeal(showAll);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error');
+    }
+  };
+
   return (
     <div>
       {/* Header */}
@@ -267,10 +290,18 @@ export default function DealDetailPage() {
 
         {/* Activity Timeline - wider column */}
         <div className="lg:col-span-2 bg-white rounded-lg shadow border">
-          <div className="flex items-center gap-2 p-4 border-b">
-            <CalendarCheck size={18} className="text-gray-500" />
-            <h3 className="font-semibold text-gray-900">Activity Timeline</h3>
-            <span className="text-xs text-gray-400 ml-1">({totalActivities})</span>
+          <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center gap-2">
+              <CalendarCheck size={18} className="text-gray-500" />
+              <h3 className="font-semibold text-gray-900">Activity Timeline</h3>
+              <span className="text-xs text-gray-400 ml-1">({totalActivities})</span>
+            </div>
+            <button
+              onClick={() => { setActivityForm({ type: 'call', subject: '', description: '', due_date: '', contact_id: '' }); setActivityModalOpen(true); }}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus size={14} /> Log Activity
+            </button>
           </div>
           {displayedActivities.length > 0 ? (
             <div>
@@ -409,6 +440,43 @@ export default function DealDetailPage() {
           </div>
           <div className="flex justify-end gap-3 pt-4">
             <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Activity Modal */}
+      <Modal isOpen={activityModalOpen} onClose={() => setActivityModalOpen(false)} title="Log Activity">
+        <form onSubmit={handleActivitySubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+            <select value={activityForm.type} onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {['call', 'email', 'meeting', 'note', 'task'].map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+            <input type="text" value={activityForm.subject} onChange={(e) => setActivityForm({ ...activityForm, subject: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea value={activityForm.description} onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Due Date & Time</label>
+              <input type="datetime-local" value={activityForm.due_date} onChange={(e) => setActivityForm({ ...activityForm, due_date: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+              <select value={activityForm.contact_id || ''} onChange={(e) => setActivityForm({ ...activityForm, contact_id: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">None</option>
+                {activityContacts.map((c) => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <button type="button" onClick={() => setActivityModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
             <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
           </div>
         </form>

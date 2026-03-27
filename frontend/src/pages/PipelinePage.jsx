@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import Modal from '../components/common/Modal';
 import toast from 'react-hot-toast';
-import { IndianRupee, ChevronLeft, ChevronRight, Clock, Pencil, Archive } from 'lucide-react';
+import { IndianRupee, ChevronLeft, ChevronRight, Clock, Calendar, Pencil, Archive, Building2, User } from 'lucide-react';
 import DealSentimentBadge from '../components/deals/DealSentimentBadge';
 import { useAuth } from '../context/AuthContext';
+import usePageTitle from '../hooks/usePageTitle';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Website', 'Event', 'Other'];
@@ -28,8 +29,19 @@ function stageAgeColor(stageChangedAt) {
   return 'text-red-500';
 }
 
+function dealAge(createdAt) {
+  if (!createdAt) return null;
+  const diff = Date.now() - new Date(createdAt).getTime();
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  if (days === 0) return 'Today';
+  if (days === 1) return '1 day';
+  return `${days} days`;
+}
+
 function DealCard({ deal, index, onClickDeal, onEditDeal }) {
-  const age = stageAge(deal.stage_changed_at);
+  const sAge = stageAge(deal.stage_changed_at);
+  const dAge = dealAge(deal.created_at);
+  const sentimentBorder = deal.sentiment === 'negative' ? 'border-l-rose-400' : deal.sentiment === 'positive' ? 'border-l-emerald-400' : 'border-l-stone-300';
   return (
     <Draggable draggableId={String(deal.id)} index={index}>
       {(provided, snapshot) => (
@@ -38,33 +50,60 @@ function DealCard({ deal, index, onClickDeal, onEditDeal }) {
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           onClick={() => onClickDeal(deal.id)}
-          className={`bg-white rounded-lg shadow-sm border p-3 mb-2 cursor-pointer hover:border-blue-300 group ${snapshot.isDragging ? 'shadow-lg ring-2 ring-blue-400' : ''}`}
+          className={`bg-white rounded-xl border border-l-[3px] ${sentimentBorder} p-3.5 mb-2.5 cursor-pointer transition-all group hover:shadow-md hover:border-blue-300 ${snapshot.isDragging ? 'shadow-lg ring-2 ring-blue-400' : 'shadow-sm'}`}
         >
-          <div className="flex items-start justify-between gap-1">
-            <h4 className="font-medium text-sm text-gray-900">{deal.title}</h4>
+          {/* Title row */}
+          <div className="flex items-start justify-between gap-2">
+            <h4 className="font-semibold text-[13px] leading-snug text-stone-900 line-clamp-2">{deal.title}</h4>
             <button
               onClick={(e) => { e.stopPropagation(); onEditDeal(deal); }}
-              className="p-1 rounded text-gray-300 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+              className="p-1 rounded-lg text-stone-300 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-all shrink-0"
               title="Edit deal"
             >
               <Pencil size={13} />
             </button>
           </div>
-          <div className="mt-2">
-            <DealSentimentBadge sentiment={deal.sentiment} />
-          </div>
-          {deal.company_name && <p className="text-xs text-gray-500 mt-1">{deal.company_name}</p>}
-          <div className="flex items-center justify-between mt-2">
-            <span className="flex items-center text-xs font-medium text-green-600">
-              <IndianRupee size={12} />{fmt(deal.value).replace('₹', '')}
-            </span>
-            {age && (
-              <span className={`flex items-center gap-1 text-xs ${stageAgeColor(deal.stage_changed_at)}`} title="Time in current stage">
-                <Clock size={11} />{age}
+
+          {/* Company & Owner */}
+          <div className="mt-2 flex flex-col gap-1">
+            {deal.company_name && (
+              <span className="flex items-center gap-1.5 text-xs text-stone-500">
+                <Building2 size={11} className="text-stone-400 shrink-0" />{deal.company_name}
+              </span>
+            )}
+            {deal.owner_name && (
+              <span className="flex items-center gap-1.5 text-xs text-stone-400">
+                <User size={11} className="text-stone-300 shrink-0" />{deal.owner_name}
               </span>
             )}
           </div>
-          {deal.owner_name && <div className="text-xs text-gray-400 mt-1">{deal.owner_name}</div>}
+
+          {/* Divider */}
+          <div className="mt-2.5 mb-2.5 border-t border-stone-100" />
+
+          {/* Value + Sentiment */}
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-0.5 text-sm font-semibold text-emerald-600">
+              <IndianRupee size={13} />{fmt(deal.value).replace('₹', '')}
+            </span>
+            <DealSentimentBadge sentiment={deal.sentiment} />
+          </div>
+
+          {/* Age row */}
+          {(dAge || sAge) && (
+            <div className="mt-2.5 flex items-center justify-between rounded-lg bg-stone-50 px-2.5 py-1.5">
+              {dAge && (
+                <span className="flex items-center gap-1 text-[11px] text-stone-400" title="Deal age">
+                  <Calendar size={10} />Deal: {dAge}
+                </span>
+              )}
+              {sAge && (
+                <span className={`flex items-center gap-1 text-[11px] font-medium ${stageAgeColor(deal.stage_changed_at)}`} title="Time in current stage">
+                  <Clock size={10} />Stage: {sAge}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
     </Draggable>
@@ -72,6 +111,7 @@ function DealCard({ deal, index, onClickDeal, onEditDeal }) {
 }
 
 export default function PipelinePage() {
+  usePageTitle('Pipeline');
   const { user } = useAuth();
   const [pipeline, setPipeline] = useState([]);
   const scrollRef = useRef(null);
@@ -113,6 +153,10 @@ export default function PipelinePage() {
     }
     return stage;
   });
+
+  const openPipelineValue = pipeline
+    .filter(stage => !stage.is_closed)
+    .reduce((sum, stage) => sum + stage.deals.reduce((s, d) => s + (d.value || 0), 0), 0);
 
   const openEditModal = (deal) => {
     Promise.all([
@@ -257,13 +301,19 @@ export default function PipelinePage() {
             </select>
           )}
         </div>
-        <button
-          onClick={() => navigate('/deals/closed')}
-          className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
-        >
-          <Archive size={16} />
-          Closed Deals
-        </button>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-xs text-gray-500">Open Pipeline</div>
+            <div className="text-lg font-semibold text-gray-900">{fmt(openPipelineValue)}</div>
+          </div>
+          <button
+            onClick={() => navigate('/deals/closed')}
+            className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+          >
+            <Archive size={16} />
+            Closed Deals
+          </button>
+        </div>
       </div>
       <div
         ref={topScrollRef}

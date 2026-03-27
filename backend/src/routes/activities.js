@@ -4,6 +4,7 @@ const c = require('../controllers/activitiesController');
 
 const router = Router();
 router.use(authenticate);
+router.get('/upcoming', c.getUpcoming);
 router.get('/', c.getAll);
 router.get('/:id', c.getById);
 router.post('/', c.create);

@@ -1,7 +1,9 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import useActivityReminders from '../../hooks/useActivityReminders';
 
 export default function AppLayout() {
+  useActivityReminders();
   return (
     <div className="flex min-h-screen bg-gray-100">
       <Sidebar />

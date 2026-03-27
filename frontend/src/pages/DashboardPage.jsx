@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
+import usePageTitle from '../hooks/usePageTitle';
 import {
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   Clock3,
-  Gauge,
   IndianRupee,
   KanbanSquare,
   Orbit,
@@ -13,19 +13,13 @@ import {
   Timer,
   Trophy,
   Users,
+  CalendarCheck,
+  Plus,
 } from 'lucide-react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import api from '../api/client';
-import { formatDate } from '../utils/dateFormat';
+import toast from 'react-hot-toast';
+import Modal from '../components/common/Modal';
+import { formatDate, formatDateTime } from '../utils/dateFormat';
 import { useAuth } from '../context/AuthContext';
 
 const sentimentStyles = {
@@ -34,7 +28,6 @@ const sentimentStyles = {
   neutral: 'bg-stone-100 text-stone-700',
 };
 
-const stageBarColors = ['#0f766e', '#0369a1', '#7c3aed', '#ea580c', '#dc2626', '#525252'];
 
 function DeltaBadge({ delta }) {
   if (delta === null || delta === undefined) return null;
@@ -86,11 +79,17 @@ const fmt = (n) => new Intl.NumberFormat('en-IN', {
 }).format(n || 0);
 
 export default function DashboardPage() {
+  usePageTitle('Dashboard');
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [dealFilter, setDealFilter] = useState(() => localStorage.getItem('dealFilter') || 'all');
   const changeDealFilter = (v) => { localStorage.setItem('dealFilter', v); setDealFilter(v); };
   const [filterOwners, setFilterOwners] = useState([]);
+  const [activityModalOpen, setActivityModalOpen] = useState(false);
+  const emptyActivityForm = { type: 'call', subject: '', description: '', due_date: '', deal_id: '', contact_id: '' };
+  const [activityForm, setActivityForm] = useState(emptyActivityForm);
+  const [activityDeals, setActivityDeals] = useState([]);
+  const [activityContacts, setActivityContacts] = useState([]);
 
   useEffect(() => {
     if (user?.role !== 'sales_rep') {
@@ -104,11 +103,33 @@ export default function DashboardPage() {
     api.get(`/reports/dashboard${params}`).then((response) => setData(response.data));
   }, [dealFilter]);
 
+  const openActivityModal = () => {
+    Promise.all([api.get('/deals'), api.get('/contacts')]).then(([d, c]) => {
+      setActivityDeals(d.data);
+      setActivityContacts(c.data);
+    });
+    setActivityForm(emptyActivityForm);
+    setActivityModalOpen(true);
+  };
+
+  const handleActivitySubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/activities', { ...activityForm, deal_id: activityForm.deal_id || null, contact_id: activityForm.contact_id || null, due_date: activityForm.due_date || null });
+      toast.success('Activity created');
+      setActivityModalOpen(false);
+      const params = dealFilter === 'all' ? '' : dealFilter === 'mine' ? '?my_deals=true' : `?owner_id=${dealFilter}`;
+      api.get(`/reports/dashboard${params}`).then((response) => setData(response.data));
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error');
+    }
+  };
+
   if (!data) {
     return <div className="rounded-[2rem] border border-stone-200 bg-white p-12 text-center text-stone-500">Loading dashboard...</div>;
   }
 
-  const { snapshot, movement, stageHealth, leadSources, repLeaderboard, attention, recentActivities, avgSalesCycleDays } = data;
+  const { snapshot, movement, leadSources, repLeaderboard, attention, recentActivities, upcomingActivities, avgSalesCycleDays } = data;
 
   return (
     <div className="space-y-6">
@@ -220,61 +241,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
-          <SectionTitle
-            icon={Gauge}
-            iconTone="bg-cyan-50 text-cyan-700"
-            title="Stage Health"
-            text="Management best practice is to watch where value is stacking up and where cycle time is stretching."
-          />
-          <div className="mt-6 h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stageHealth}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="stage" />
-                <YAxis tickFormatter={(value) => `₹${Math.round(value / 1000)}k`} />
-                <Tooltip
-                  formatter={(value, name) => [name === 'deal_value' ? fmt(value) : value, name === 'deal_value' ? 'Pipeline Value' : 'Deals']}
-                />
-                <Bar dataKey="deal_value" radius={[10, 10, 0, 0]}>
-                  {stageHealth.map((_, index) => <Cell key={index} fill={stageBarColors[index % stageBarColors.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-2">
-            {stageHealth.map((stage) => (
-              <div key={stage.stage} className="rounded-2xl border border-stone-200 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-stone-900">{stage.stage}</span>
-                      <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500">{stage.win_probability}%</span>
-                    </div>
-                    <div className="mt-1 text-xs text-stone-500">{stage.deal_count} active deal(s)</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-stone-900">{fmt(stage.deal_value)}</div>
-                    <div className="text-xs text-teal-600">Wtd: {fmt(stage.weighted_value)}</div>
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center justify-between text-xs text-stone-600">
-                  <span>{stage.avg_days_in_stage}d avg age</span>
-                  <span>{stage.negative_deals} neg. sentiment</span>
-                  <span>{stage.max_days_in_stage}d max</span>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-100">
-                  <div
-                    className={`${stage.avg_days_in_stage >= 21 ? 'bg-rose-500' : stage.avg_days_in_stage >= 10 ? 'bg-amber-500' : 'bg-emerald-500'} h-full rounded-full`}
-                    style={{ width: `${Math.min(100, Math.max(10, stage.avg_days_in_stage * 3))}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
+      <div className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
           <SectionTitle
             icon={AlertTriangle}
@@ -321,6 +288,46 @@ export default function DashboardPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <SectionTitle
+              icon={CalendarCheck}
+              iconTone="bg-blue-50 text-blue-700"
+              title="Upcoming Activities"
+              text="Your next scheduled activities — stay on top of calls, meetings, and tasks."
+            />
+            <button
+              onClick={openActivityModal}
+              className="flex items-center gap-1 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors shrink-0"
+            >
+              <Plus size={16} /> Add
+            </button>
+          </div>
+          <div className="mt-5 space-y-3">
+            {(!upcomingActivities || upcomingActivities.length === 0) ? (
+              <div className="rounded-2xl border border-dashed border-stone-200 p-6 text-sm text-stone-500">No upcoming activities scheduled.</div>
+            ) : upcomingActivities.map((activity) => {
+              const isSoon = activity.due_date && (new Date(activity.due_date).getTime() - Date.now()) <= 60 * 60 * 1000;
+              return (
+                <div key={activity.id} className={`flex items-start gap-3 rounded-2xl border p-4 ${isSoon ? 'border-amber-300 bg-amber-50' : 'border-stone-200'}`}>
+                  <div className={`rounded-full px-2 py-1 text-[11px] font-medium uppercase tracking-wide ${isSoon ? 'bg-amber-100 text-amber-700' : 'bg-blue-50 text-blue-600'}`}>
+                    {activity.type}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-stone-900">{activity.subject}</span>
+                      {isSoon && <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Soon</span>}
+                    </div>
+                    <div className="mt-1 text-xs text-stone-500">
+                      {activity.deal_title || 'General'}{activity.contact_name && activity.contact_name.trim() ? ` • ${activity.contact_name}` : ''} • {formatDateTime(activity.due_date)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -463,6 +470,49 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <Modal isOpen={activityModalOpen} onClose={() => setActivityModalOpen(false)} title="Log Activity">
+        <form onSubmit={handleActivitySubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+            <select value={activityForm.type} onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {['call', 'email', 'meeting', 'note', 'task'].map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+            <input type="text" value={activityForm.subject} onChange={(e) => setActivityForm({ ...activityForm, subject: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea value={activityForm.description} onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Due Date & Time</label>
+            <input type="datetime-local" value={activityForm.due_date} onChange={(e) => setActivityForm({ ...activityForm, due_date: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Deal</label>
+              <select value={activityForm.deal_id} onChange={(e) => setActivityForm({ ...activityForm, deal_id: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">None</option>
+                {activityDeals.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contact</label>
+              <select value={activityForm.contact_id} onChange={(e) => setActivityForm({ ...activityForm, contact_id: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">None</option>
+                {activityContacts.map((c) => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <button type="button" onClick={() => setActivityModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

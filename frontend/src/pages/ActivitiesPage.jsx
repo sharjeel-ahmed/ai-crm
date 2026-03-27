@@ -4,6 +4,7 @@ import Modal from '../components/common/Modal';
 import { Plus, Phone, Mail, Calendar, FileText, CheckSquare, Check } from 'lucide-react';
 import { formatDate, formatDateTime } from '../utils/dateFormat';
 import toast from 'react-hot-toast';
+import usePageTitle from '../hooks/usePageTitle';
 
 const typeIcons = { call: Phone, email: Mail, meeting: Calendar, note: FileText, task: CheckSquare };
 const typeColors = { call: 'bg-blue-100 text-blue-700', email: 'bg-green-100 text-green-700', meeting: 'bg-purple-100 text-purple-700', note: 'bg-yellow-100 text-yellow-700', task: 'bg-red-100 text-red-700' };
@@ -11,6 +12,7 @@ const typeColors = { call: 'bg-blue-100 text-blue-700', email: 'bg-green-100 tex
 const emptyForm = { type: 'call', subject: '', description: '', due_date: '', deal_id: '', contact_id: '' };
 
 export default function ActivitiesPage() {
+  usePageTitle('Activities');
   const [activities, setActivities] = useState([]);
   const [deals, setDeals] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -109,8 +111,8 @@ export default function ActivitiesPage() {
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-            <input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Due Date & Time</label>
+            <input type="datetime-local" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
