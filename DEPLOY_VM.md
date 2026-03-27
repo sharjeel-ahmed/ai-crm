@@ -13,6 +13,23 @@ This app can run as a single Node process behind Nginx:
 - Nginx
 - `systemd`
 
+## Current production target
+
+- App repo path: `/var/www/pazo-crm`
+- Standard update command: `cd /var/www/pazo-crm && bash deploy/update-ubuntu.sh`
+- Preferred workflow: push to `origin/master`, then run the update script on the VM
+
+The update script already handles:
+
+- `git fetch origin`
+- `git checkout master`
+- `git pull --ff-only origin master`
+- backend `npm install`
+- frontend `npm install --include=dev`
+- frontend `npm run build`
+- `sudo systemctl restart pazo-crm`
+- `sudo systemctl reload nginx`
+
 ## 1. Install system packages
 
 ```bash
@@ -179,17 +196,21 @@ sudo certbot --nginx -d your-domain.example
 
 ```bash
 cd /var/www/pazo-crm
-git pull
-
-cd /var/www/pazo-crm/backend
-npm install
-
-cd /var/www/pazo-crm/frontend
-npm install --include=dev
-npm run build
-
-sudo systemctl restart pazo-crm
+bash deploy/update-ubuntu.sh
 ```
+
+Recommended release flow:
+
+```bash
+git push origin master
+ssh user@your-server
+cd /var/www/pazo-crm
+bash deploy/update-ubuntu.sh
+```
+
+Operational note:
+
+- Ignore unrelated local modifications on the VM during routine deploys unless the update script itself fails. The standard deploy path is still to push Git changes and run `bash deploy/update-ubuntu.sh`.
 
 ## Common issues
 
