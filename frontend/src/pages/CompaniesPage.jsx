@@ -6,10 +6,12 @@ import { Plus, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import usePageTitle from '../hooks/usePageTitle';
 
 const emptyForm = { name: '', industry: '', website: '', phone: '', address: '' };
 
 export default function CompaniesPage() {
+  usePageTitle('Companies');
   const [companies, setCompanies] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);

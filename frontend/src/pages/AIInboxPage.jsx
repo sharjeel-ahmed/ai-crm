@@ -4,8 +4,10 @@ import toast from 'react-hot-toast';
 import { Sparkles, Filter, CheckCheck, XCircle } from 'lucide-react';
 import SuggestionCard from '../components/ai/SuggestionCard';
 import SuggestionEditModal from '../components/ai/SuggestionEditModal';
+import usePageTitle from '../hooks/usePageTitle';
 
 export default function AIInboxPage() {
+  usePageTitle('AI Inbox');
   const [suggestions, setSuggestions] = useState([]);
   const [stats, setStats] = useState({ pending: 0, approved: 0, auto_approved: 0, dismissed: 0 });
   const [total, setTotal] = useState(0);

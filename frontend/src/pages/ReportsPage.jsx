@@ -22,6 +22,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import usePageTitle from '../hooks/usePageTitle';
 
 const presets = [
   { value: 'last_week', label: 'Last Week' },
@@ -79,6 +80,7 @@ function MetricCard({ icon: Icon, label, value, subtext, accent = 'text-sky-600'
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
 
 export default function ReportsPage() {
+  usePageTitle('Reports');
   const defaultDates = getPresetDates('last_week');
   const [preset, setPreset] = useState('last_week');
   const [startDate, setStartDate] = useState(defaultDates.startDate);

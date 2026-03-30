@@ -7,11 +7,13 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import DealSentimentBadge from '../components/deals/DealSentimentBadge';
 import { useAuth } from '../context/AuthContext';
+import usePageTitle from '../hooks/usePageTitle';
 
 const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Website', 'Event', 'Other'];
 const emptyForm = { title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '' };
 
 export default function DealsPage() {
+  usePageTitle('Deals');
   const { user } = useAuth();
   const [deals, setDeals] = useState([]);
   const [stages, setStages] = useState([]);

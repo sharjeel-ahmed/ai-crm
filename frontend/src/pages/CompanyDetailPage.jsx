@@ -4,6 +4,7 @@ import api from '../api/client';
 import Modal from '../components/common/Modal';
 import { Building2, ArrowLeft, Users, Briefcase, Globe, Phone, MapPin, Factory, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
+import usePageTitle from '../hooks/usePageTitle';
 
 const stageColors = {
   Lead: 'bg-gray-100 text-gray-700',
@@ -15,6 +16,7 @@ const stageColors = {
 };
 
 export default function CompanyDetailPage() {
+  usePageTitle('Company Details');
   const { id } = useParams();
   const navigate = useNavigate();
   const [company, setCompany] = useState(null);

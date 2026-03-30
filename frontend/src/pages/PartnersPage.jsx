@@ -6,6 +6,7 @@ import Modal from '../components/common/Modal';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import usePageTitle from '../hooks/usePageTitle';
 
 const partnerTypes = ['Channel Partner', 'Outbound Partner', 'Referral Partner'];
 const typeColors = {
@@ -17,6 +18,7 @@ const typeColors = {
 const emptyForm = { name: '', type: '', contact_name: '', email: '', phone: '', notes: '' };
 
 export default function PartnersPage() {
+  usePageTitle('Partners');
   const [partners, setPartners] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);

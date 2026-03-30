@@ -4,6 +4,7 @@ import { formatDateTime } from '../utils/dateFormat';
 import { ScrollText, Mail, MailOpen, Clock, Sparkles, Ban, ChevronDown, ChevronRight, MessageSquare, Code, EyeOff, Trash2, ChevronsRight, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfidenceBadge from '../components/ai/ConfidenceBadge';
+import usePageTitle from '../hooks/usePageTitle';
 
 const actionConfig = {
   pending: { label: 'Awaiting AI', icon: Clock, color: 'text-yellow-600 bg-yellow-50' },
@@ -37,6 +38,7 @@ function tryFormatJSON(str) {
 }
 
 export default function AILogsPage() {
+  usePageTitle('AI Logs');
   const [logs, setLogs] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);

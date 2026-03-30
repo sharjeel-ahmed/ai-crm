@@ -49,8 +49,8 @@ function MetricCard({ icon: Icon, label, value, subtext, accent, tone, delta }) 
         </div>
         <span className="text-xs uppercase tracking-[0.24em] text-stone-400">{label}</span>
       </div>
-      <div className="mt-5 flex items-baseline gap-2">
-        <span className="text-3xl font-semibold text-stone-950">{value}</span>
+      <div className="mt-5 flex items-baseline gap-2 min-w-0">
+        <span className="truncate text-3xl font-semibold text-stone-950">{value}</span>
         <DeltaBadge delta={delta} />
       </div>
       <div className="mt-2 text-sm text-stone-600">{subtext}</div>
@@ -77,6 +77,14 @@ const fmt = (n) => new Intl.NumberFormat('en-IN', {
   currency: 'INR',
   maximumFractionDigits: 0,
 }).format(n || 0);
+
+const fmtCompact = (n) => {
+  const v = Math.abs(n || 0);
+  if (v >= 1e7) return `₹${(n / 1e7).toFixed(1).replace(/\.0$/, '')} Cr`;
+  if (v >= 1e5) return `₹${(n / 1e5).toFixed(1).replace(/\.0$/, '')} L`;
+  if (v >= 1e3) return `₹${(n / 1e3).toFixed(1).replace(/\.0$/, '')} K`;
+  return fmt(n);
+};
 
 export default function DashboardPage() {
   usePageTitle('Dashboard');
@@ -159,26 +167,26 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="grid gap-4 rounded-[1.75rem] border border-stone-200 bg-white/80 p-5 backdrop-blur md:grid-cols-4">
-            <div>
+          <div className="grid grid-cols-2 gap-4 rounded-[1.75rem] border border-stone-200 bg-white/80 p-5 backdrop-blur md:grid-cols-4">
+            <div className="min-w-0">
               <div className="text-xs uppercase tracking-[0.22em] text-stone-400">Open Book</div>
-              <div className="mt-2 text-2xl font-semibold text-stone-950">{fmt(snapshot.openValue)}</div>
+              <div className="mt-2 truncate text-2xl font-semibold text-stone-950" title={fmt(snapshot.openValue)}>{fmtCompact(snapshot.openValue)}</div>
               <div className="mt-1 text-sm text-stone-500">{snapshot.openDeals} active deals</div>
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-xs uppercase tracking-[0.22em] text-stone-400">Forecast</div>
-              <div className="mt-2 text-2xl font-semibold text-teal-700">{fmt(snapshot.weightedPipelineValue)}</div>
+              <div className="mt-2 truncate text-2xl font-semibold text-teal-700" title={fmt(snapshot.weightedPipelineValue)}>{fmtCompact(snapshot.weightedPipelineValue)}</div>
               <div className="mt-1 text-sm text-stone-500">weighted by stage probability</div>
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-xs uppercase tracking-[0.22em] text-stone-400">Wins, 30 Days</div>
               <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-semibold text-stone-950">{fmt(movement.wonValueLast30Days)}</span>
+                <span className="truncate text-2xl font-semibold text-stone-950" title={fmt(movement.wonValueLast30Days)}>{fmtCompact(movement.wonValueLast30Days)}</span>
                 <DeltaBadge delta={movement.wonValueDelta} />
               </div>
               <div className="mt-1 text-sm text-stone-500">{movement.wonDealsLast30Days} deals won</div>
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-xs uppercase tracking-[0.22em] text-stone-400">At Risk</div>
               <div className="mt-2 text-2xl font-semibold text-stone-950">{snapshot.staleDeals + snapshot.noActivityLast7Days}</div>
               <div className="mt-1 text-sm text-stone-500">stale or inactive signals</div>
@@ -191,8 +199,8 @@ export default function DashboardPage() {
         <MetricCard
           icon={KanbanSquare}
           label="Open Pipeline"
-          value={fmt(snapshot.openValue)}
-          subtext={`Forecast: ${fmt(snapshot.weightedPipelineValue)} weighted by probability`}
+          value={fmtCompact(snapshot.openValue)}
+          subtext={`Forecast: ${fmtCompact(snapshot.weightedPipelineValue)} weighted by probability`}
           accent="bg-sky-50 text-sky-700"
           tone="border-stone-200 bg-white"
         />
@@ -208,7 +216,7 @@ export default function DashboardPage() {
         <MetricCard
           icon={Sparkles}
           label="New Demand"
-          value={fmt(movement.newValueLast7Days)}
+          value={fmtCompact(movement.newValueLast7Days)}
           subtext={`${movement.newDealsLast7Days} new deals opened in the last 7 days`}
           accent="bg-violet-50 text-violet-700"
           tone="border-stone-200 bg-white"

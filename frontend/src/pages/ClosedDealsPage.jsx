@@ -4,10 +4,12 @@ import api from '../api/client';
 import { Archive, ArrowLeft, IndianRupee } from 'lucide-react';
 import { formatDate } from '../utils/dateFormat';
 import DealSentimentBadge from '../components/deals/DealSentimentBadge';
+import usePageTitle from '../hooks/usePageTitle';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 
 export default function ClosedDealsPage() {
+  usePageTitle('Closed Deals');
   const [deals, setDeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, won, lost

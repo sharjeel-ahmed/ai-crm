@@ -4,8 +4,10 @@ import { UserRound, KeyRound, Mail, Shield } from 'lucide-react';
 import api from '../api/client';
 import { formatDate } from '../utils/dateFormat';
 import { useAuth } from '../context/AuthContext';
+import usePageTitle from '../hooks/usePageTitle';
 
 export default function ProfilePage() {
+  usePageTitle('Profile');
   const { user, setUser } = useAuth();
   const [form, setForm] = useState({
     name: '',

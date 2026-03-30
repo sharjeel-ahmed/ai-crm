@@ -6,10 +6,12 @@ import { Plus, Pencil, Trash2, EyeOff, Handshake } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import usePageTitle from '../hooks/usePageTitle';
 
 const emptyForm = { first_name: '', last_name: '', email: '', phone: '', job_title: '', company_id: '' };
 
 export default function ContactsPage() {
+  usePageTitle('Contacts');
   const [contacts, setContacts] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);

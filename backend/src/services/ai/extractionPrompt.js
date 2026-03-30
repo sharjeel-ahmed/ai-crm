@@ -31,6 +31,9 @@ Your job is to analyze emails and extract CRM-relevant data ONLY from sales-rele
 - Automated system notifications (banking alerts, app notifications)
 - Internal team discussions that aren't about a specific deal or client
 - Spam or cold outreach selling TO Pazo (not FROM Pazo)
+- Invoice payments, payment receipts, payment confirmations, and transaction alerts
+- Payment reminders, overdue notices, and collection emails
+- Accounting/billing system notifications (e.g. Razorpay, Stripe, PayPal, bank transfers)
 - Investment, fundraising, exits, M&A, and venture capital related emails
 - Emails about equity, cap tables, term sheets, or investor updates
 

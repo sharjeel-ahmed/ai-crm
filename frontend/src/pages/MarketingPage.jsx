@@ -13,6 +13,7 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react';
+import usePageTitle from '../hooks/usePageTitle';
 
 const pillars = [
   {
@@ -53,6 +54,7 @@ const metrics = [
 ];
 
 export default function MarketingPage() {
+  usePageTitle('Welcome');
   return (
     <div className="min-h-screen bg-stone-950 text-stone-100 overflow-hidden">
       <div className="fixed inset-0 -z-10">

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { ArrowLeft, Handshake, Users, Briefcase, Mail, Phone, IndianRupee, User } from 'lucide-react';
 import { formatDate } from '../utils/dateFormat';
+import usePageTitle from '../hooks/usePageTitle';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 
@@ -22,6 +23,7 @@ const stageColors = {
 };
 
 export default function PartnerDetailPage() {
+  usePageTitle('Partner Details');
   const { id } = useParams();
   const navigate = useNavigate();
   const [partner, setPartner] = useState(null);

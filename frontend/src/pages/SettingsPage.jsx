@@ -8,8 +8,10 @@ import toast from 'react-hot-toast';
 import AIProviderForm from '../components/ai/AIProviderForm';
 import EmailAccountCard from '../components/ai/EmailAccountCard';
 import AutoApproveRuleRow from '../components/ai/AutoApproveRuleRow';
+import usePageTitle from '../hooks/usePageTitle';
 
 export default function SettingsPage() {
+  usePageTitle('Settings');
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') === 'email' ? 'email' : 'users';
   const [tab, setTab] = useState(initialTab);
