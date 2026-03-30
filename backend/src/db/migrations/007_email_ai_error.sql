@@ -1,0 +1,2 @@
+-- ai_error is added idempotently in migrate.js because SQLite does not support
+-- ALTER TABLE ... ADD COLUMN IF NOT EXISTS across the versions we target.

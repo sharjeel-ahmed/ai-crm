@@ -6,7 +6,7 @@ function getLogs(req, res) {
 
   const allEmails = db.prepare(`
     SELECT e.id, e.subject, e.from_address, e.from_name, e.to_addresses, e.date, e.is_inbound, e.ai_processed,
-           e.ai_prompt, e.ai_response,
+           e.ai_prompt, e.ai_response, e.ai_error,
            e.created_at as synced_at, ea.email_address as account_email
     FROM emails e
     JOIN email_accounts ea ON e.email_account_id = ea.id
@@ -31,7 +31,9 @@ function getLogs(req, res) {
   const logs = emails.map(email => {
     const suggestions = stmtSuggestions.all(email.id);
     let action;
-    if (!email.ai_processed) {
+    if (email.ai_error) {
+      action = 'error';
+    } else if (!email.ai_processed) {
       action = 'pending';
     } else if (suggestions.length === 0) {
       action = 'no_action';

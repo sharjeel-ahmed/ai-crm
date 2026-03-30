@@ -67,7 +67,7 @@ async function processOneEmail(email, aiSettings) {
 
     db.prepare(`
       UPDATE emails
-      SET ai_prompt = ?, ai_response = ?, ai_sentiment = ?, ai_sentiment_confidence = ?, ai_sentiment_reasoning = ?
+      SET ai_prompt = ?, ai_response = ?, ai_error = NULL, ai_sentiment = ?, ai_sentiment_confidence = ?, ai_sentiment_reasoning = ?
       WHERE id = ?
     `).run(
       prompt,
@@ -124,10 +124,11 @@ async function processOneEmail(email, aiSettings) {
   } catch (err) {
     const msg = err.message || '';
     if (msg.includes('credit balance') || msg.includes('billing') || msg.includes('authentication') || msg.includes('unauthorized')) {
+      db.prepare('UPDATE emails SET ai_error = ? WHERE id = ?').run(msg, email.id);
       return { success: false, fatal: true, error: msg };
     }
     console.error(`AI pipeline error for email ${email.id}:`, msg);
-    db.prepare('UPDATE emails SET ai_processed = 1 WHERE id = ?').run(email.id);
+    db.prepare('UPDATE emails SET ai_processed = 1, ai_error = ? WHERE id = ?').run(msg, email.id);
     return { success: false, error: msg };
   }
 }

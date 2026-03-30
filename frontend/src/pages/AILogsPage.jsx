@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import api from '../api/client';
 import { formatDateTime } from '../utils/dateFormat';
-import { ScrollText, Mail, MailOpen, Clock, Sparkles, Ban, ChevronDown, ChevronRight, MessageSquare, Code, EyeOff, Trash2, ChevronsRight, RefreshCw } from 'lucide-react';
+import { ScrollText, Mail, MailOpen, Clock, Sparkles, Ban, ChevronDown, ChevronRight, MessageSquare, Code, EyeOff, Trash2, ChevronsRight, RefreshCw, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ConfidenceBadge from '../components/ai/ConfidenceBadge';
 import usePageTitle from '../hooks/usePageTitle';
 
 const actionConfig = {
   pending: { label: 'Awaiting AI', icon: Clock, color: 'text-yellow-600 bg-yellow-50' },
+  error: { label: 'Error', icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
   no_action: { label: 'No CRM data found', icon: Ban, color: 'text-gray-500 bg-gray-50' },
   suggestions_created: { label: 'Suggestions created', icon: Sparkles, color: 'text-blue-600 bg-blue-50' },
 };
@@ -64,7 +65,7 @@ export default function AILogsPage() {
     });
   };
 
-  const getTab = (id) => activeTab[id] || 'prompt';
+  const getTab = (log) => activeTab[log.id] || (log.ai_error ? 'error' : 'prompt');
   const setTab = (id, tab) => setActiveTab(prev => ({ ...prev, [id]: tab }));
 
   const handleDelete = async (id) => {
@@ -160,9 +161,10 @@ export default function AILogsPage() {
             const ActionIcon = action.icon;
             const isExpanded = expanded.has(log.id);
             const hasSuggestions = log.suggestions.length > 0;
+            const hasError = Boolean(log.ai_error);
             const hasAIData = log.ai_prompt || log.ai_response;
-            const canExpand = hasSuggestions || hasAIData;
-            const tab = getTab(log.id);
+            const canExpand = hasSuggestions || hasAIData || hasError;
+            const tab = getTab(log);
 
             return (
               <div key={log.id} className="bg-white rounded-lg shadow border">
@@ -245,8 +247,19 @@ export default function AILogsPage() {
                 {isExpanded && canExpand && (
                   <div className="border-t px-4 pb-4 pt-3 ml-12">
                     {/* Tabs */}
-                    {hasAIData && (
+                    {(hasAIData || hasError) && (
                       <div className="flex gap-1 mb-3 border-b">
+                        {hasError && (
+                          <button
+                            onClick={() => setTab(log.id, 'error')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 -mb-px transition-colors ${
+                              tab === 'error' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                            }`}
+                          >
+                            <AlertTriangle size={12} />
+                            Error
+                          </button>
+                        )}
                         <button
                           onClick={() => setTab(log.id, 'prompt')}
                           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 -mb-px transition-colors ${
@@ -276,6 +289,12 @@ export default function AILogsPage() {
                             Suggestions ({log.suggestions.length})
                           </button>
                         )}
+                      </div>
+                    )}
+
+                    {tab === 'error' && hasError && (
+                      <div className="bg-red-950 text-red-100 rounded-lg p-4 text-xs font-mono whitespace-pre-wrap max-h-96 overflow-auto">
+                        {log.ai_error}
                       </div>
                     )}
 

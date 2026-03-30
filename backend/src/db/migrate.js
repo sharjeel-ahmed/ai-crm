@@ -26,6 +26,7 @@ function runMigrations() {
   addColumn('deals', 'lifecycle_manual', 'INTEGER NOT NULL DEFAULT 0');
   addColumn('contacts', 'partner_id', 'INTEGER REFERENCES partners(id)');
   addColumn('deal_stages', 'win_probability', 'REAL');
+  addColumn('emails', 'ai_error', 'TEXT');
 
   // Seed default win_probability values
   const stagesToSeed = db.prepare('SELECT id, name, is_closed FROM deal_stages WHERE win_probability IS NULL').all();
