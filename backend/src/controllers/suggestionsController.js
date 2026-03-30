@@ -330,7 +330,7 @@ function applySuggestion(db, type, data, userId, emailDate, emailId) {
         const ownerId = resolveDealOwnerId(db, emailId, userId);
         const result = db.prepare(
           "INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, lead_source, partner_id, ai_generated, notes, created_at, updated_at, stage_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'), ?)"
-        ).run(data.title || '', data.value || 0, stageId, companyId, contactId, ownerId, data.lead_source || 'ai_email', partnerId, data.notes || '', tsValue);
+        ).run(data.title || '', parseFloat(data.value) || 0, stageId, companyId, contactId, ownerId, data.lead_source || 'ai_email', partnerId, data.notes || '', tsValue);
 
         // Log deal creation activity
         const stageName = db.prepare('SELECT name FROM deal_stages WHERE id = ?').get(stageId)?.name || 'Unknown';

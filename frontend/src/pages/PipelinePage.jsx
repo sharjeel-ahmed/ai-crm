@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import usePageTitle from '../hooks/usePageTitle';
 import { formatStageAge, stageAgeColor } from '../utils/stageAge';
 
-const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(n) || 0);
 const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Website', 'Event', 'Other'];
 
 function dealAge(createdAt) {
@@ -140,7 +140,7 @@ export default function PipelinePage() {
 
   const openPipelineValue = pipeline
     .filter(stage => !stage.is_closed)
-    .reduce((sum, stage) => sum + stage.deals.reduce((s, d) => s + (d.value || 0), 0), 0);
+    .reduce((sum, stage) => sum + stage.deals.reduce((s, d) => s + (Number(d.value) || 0), 0), 0);
 
   const openEditModal = (deal) => {
     Promise.all([
@@ -342,7 +342,7 @@ export default function PipelinePage() {
                     <span className="text-xs bg-gray-300 text-gray-600 px-2 py-0.5 rounded-full">{stage.deals.length}</span>
                   </div>
                   <div className="text-xs text-gray-500 mb-3">
-                    {fmt(stage.deals.reduce((sum, d) => sum + (d.value || 0), 0))}
+                    {fmt(stage.deals.reduce((sum, d) => sum + (Number(d.value) || 0), 0))}
                   </div>
                   <Droppable droppableId={String(stage.id)}>
                     {(provided) => (
