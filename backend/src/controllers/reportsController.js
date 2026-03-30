@@ -587,31 +587,36 @@ function dashboard(req, res) {
     return Math.round(((current - previous) / previous) * 100);
   }
 
+  function num(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
   res.json({
     snapshot: {
       totalDeals: snapshot.total_deals,
-      totalValue: snapshot.total_value,
+      totalValue: num(snapshot.total_value),
       openDeals: snapshot.open_deals,
-      openValue: snapshot.open_value,
-      weightedPipelineValue: Math.round(snapshot.weighted_pipeline_value || 0),
+      openValue: num(snapshot.open_value),
+      weightedPipelineValue: Math.round(num(snapshot.weighted_pipeline_value)),
       leadStageDeals: snapshot.lead_stage_deals,
-      leadStageValue: snapshot.lead_stage_value,
+      leadStageValue: num(snapshot.lead_stage_value),
       negativeSentimentDeals: snapshot.negative_sentiment_deals,
       staleDeals: snapshot.stale_deals,
       noActivityLast7Days: noActivityWindow.count,
     },
     movement: {
       newDealsLast7Days: recentCreated.count,
-      newValueLast7Days: recentCreated.value,
+      newValueLast7Days: num(recentCreated.value),
       newLeadsLast7Days: newLeadsLast7Days.count,
-      newLeadValueLast7Days: newLeadsLast7Days.value,
+      newLeadValueLast7Days: num(newLeadsLast7Days.value),
       wonDealsLast30Days: recentWon.count,
-      wonValueLast30Days: recentWon.value,
+      wonValueLast30Days: num(recentWon.value),
       lostDealsLast30Days: recentLost.count,
       winRateLast30Days: winRateLast30,
       // Period-over-period deltas
-      newValueDelta: pctDelta(recentCreated.value, prevCreated.value),
-      wonValueDelta: pctDelta(recentWon.value, prevWon.value),
+      newValueDelta: pctDelta(num(recentCreated.value), num(prevCreated.value)),
+      wonValueDelta: pctDelta(num(recentWon.value), num(prevWon.value)),
       winRateDelta: pctDelta(winRateLast30, prevWinRate),
       newDealsDelta: pctDelta(recentCreated.count, prevCreated.count),
     },

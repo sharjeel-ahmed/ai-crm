@@ -78,12 +78,24 @@ const fmt = (n) => new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 }).format(n || 0);
 
+const toNumber = (value) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') {
+    const normalized = value.replace(/,/g, '').trim();
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const fmtCompact = (n) => {
-  const v = Math.abs(n || 0);
-  if (v >= 1e7) return `₹${(n / 1e7).toFixed(1).replace(/\.0$/, '')} Cr`;
-  if (v >= 1e5) return `₹${(n / 1e5).toFixed(1).replace(/\.0$/, '')} L`;
-  if (v >= 1e3) return `₹${(n / 1e3).toFixed(1).replace(/\.0$/, '')} K`;
-  return fmt(n);
+  const value = toNumber(n);
+  const v = Math.abs(value);
+  if (v >= 1e7) return `₹${(value / 1e7).toFixed(1).replace(/\.0$/, '')} Cr`;
+  if (v >= 1e5) return `₹${(value / 1e5).toFixed(1).replace(/\.0$/, '')} L`;
+  if (v >= 1e3) return `₹${(value / 1e3).toFixed(1).replace(/\.0$/, '')} K`;
+  return fmt(value);
 };
 
 export default function DashboardPage() {
