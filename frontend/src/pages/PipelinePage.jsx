@@ -12,6 +12,8 @@ import { formatStageAge, stageAgeColor } from '../utils/stageAge';
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(n) || 0);
 const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Website', 'Event', 'Other'];
+const priorities = ['low', 'medium', 'high'];
+const priorityColors = { high: 'text-red-600 bg-red-50', medium: 'text-yellow-600 bg-yellow-50', low: 'text-gray-500 bg-gray-50' };
 
 function dealAge(createdAt) {
   if (!createdAt) return null;
@@ -65,12 +67,19 @@ function DealCard({ deal, index, onClickDeal, onEditDeal }) {
           {/* Divider */}
           <div className="mt-2.5 mb-2.5 border-t border-stone-100" />
 
-          {/* Value + Sentiment */}
+          {/* Value + Sentiment + Priority */}
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-0.5 text-sm font-semibold text-emerald-600">
               <IndianRupee size={13} />{fmt(deal.value).replace('₹', '')}
             </span>
-            <DealSentimentBadge sentiment={deal.sentiment} />
+            <div className="flex items-center gap-1.5">
+              {deal.priority && deal.priority !== 'medium' && (
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium capitalize ${priorityColors[deal.priority] || ''}`}>
+                  {deal.priority}
+                </span>
+              )}
+              <DealSentimentBadge sentiment={deal.sentiment} />
+            </div>
           </div>
 
           {/* Age row */}
@@ -112,7 +121,7 @@ export default function PipelinePage() {
   const [contacts, setContacts] = useState([]);
   const [partners, setPartners] = useState([]);
   const [owners, setOwners] = useState([]);
-  const [form, setForm] = useState({ title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '' });
+  const [form, setForm] = useState({ title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '', priority: 'medium' });
   const [dealFilter, setDealFilter] = useState(() => localStorage.getItem('dealFilter') || 'all');
   const changeDealFilter = (v) => { localStorage.setItem('dealFilter', v); setDealFilter(v); };
   const [filterOwners, setFilterOwners] = useState([]);
@@ -166,6 +175,7 @@ export default function PipelinePage() {
         notes: deal.notes || '',
         lead_source: deal.lead_source || '',
         partner_id: deal.partner_id || '',
+        priority: deal.priority || 'medium',
       });
       setEditingDeal(deal);
       setModalOpen(true);
@@ -427,6 +437,12 @@ export default function PipelinePage() {
               <select value={form.partner_id} onChange={(e) => setForm({ ...form, partner_id: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">None</option>
                 {partners.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.type})</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+              <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {priorities.map((p) => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
               </select>
             </div>
           </div>

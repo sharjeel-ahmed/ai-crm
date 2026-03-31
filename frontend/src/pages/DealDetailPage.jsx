@@ -29,6 +29,8 @@ const activityTypeConfig = {
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Website', 'Event', 'Other'];
+const priorities = ['low', 'medium', 'high'];
+const priorityColors = { high: 'bg-red-100 text-red-700', medium: 'bg-yellow-100 text-yellow-700', low: 'bg-gray-100 text-gray-600' };
 
 export default function DealDetailPage() {
   usePageTitle('Deal Details');
@@ -44,7 +46,7 @@ export default function DealDetailPage() {
   const [contacts, setContacts] = useState([]);
   const [partners, setPartners] = useState([]);
   const [owners, setOwners] = useState([]);
-  const [form, setForm] = useState({ title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '' });
+  const [form, setForm] = useState({ title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '', priority: 'medium' });
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [mergeSearch, setMergeSearch] = useState('');
   const [mergeDeals, setMergeDeals] = useState([]);
@@ -88,6 +90,7 @@ export default function DealDetailPage() {
         notes: deal.notes || '',
         lead_source: deal.lead_source || '',
         partner_id: deal.partner_id || '',
+        priority: deal.priority || 'medium',
       });
       setModalOpen(true);
     });
@@ -205,6 +208,11 @@ export default function DealDetailPage() {
                 </span>
               )}
               <DealSentimentBadge sentiment={deal.sentiment} />
+              {deal.priority && (
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${priorityColors[deal.priority] || priorityColors.medium}`}>
+                  {deal.priority} priority
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-4 text-sm text-gray-500 mt-0.5">
               {deal.value > 0 && <span className="flex items-center gap-1 font-semibold text-green-600"><IndianRupee size={14} /> {fmt(deal.value)}</span>}
@@ -412,6 +420,12 @@ export default function DealDetailPage() {
               <select value={form.partner_id} onChange={(e) => setForm({ ...form, partner_id: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">None</option>
                 {partners.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.type})</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+              <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                {priorities.map((p) => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
               </select>
             </div>
           </div>

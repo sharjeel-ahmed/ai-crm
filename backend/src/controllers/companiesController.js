@@ -44,25 +44,27 @@ function getById(req, res) {
 }
 
 function create(req, res) {
-  const { name, industry, website, phone, address } = req.body;
+  const { name, industry, website, phone, address, country, is_fortune_500 } = req.body;
   if (!name) return res.status(400).json({ error: 'Company name required' });
 
   const db = getDb();
-  const result = db.prepare('INSERT INTO companies (name, industry, website, phone, address, created_by) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(name, industry || null, website || null, phone || null, address || null, req.user.id);
+  const result = db.prepare('INSERT INTO companies (name, industry, website, phone, address, country, is_fortune_500, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(name, industry || null, website || null, phone || null, address || null, country || null, is_fortune_500 ? 1 : 0, req.user.id);
   const company = db.prepare('SELECT * FROM companies WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(company);
 }
 
 function update(req, res) {
-  const { name, industry, website, phone, address } = req.body;
+  const { name, industry, website, phone, address, country, is_fortune_500 } = req.body;
   const db = getDb();
   const company = db.prepare('SELECT * FROM companies WHERE id = ?').get(req.params.id);
   if (!company) return res.status(404).json({ error: 'Company not found' });
 
-  db.prepare(`UPDATE companies SET name = ?, industry = ?, website = ?, phone = ?, address = ?, updated_at = datetime('now') WHERE id = ?`)
+  db.prepare(`UPDATE companies SET name = ?, industry = ?, website = ?, phone = ?, address = ?, country = ?, is_fortune_500 = ?, updated_at = datetime('now') WHERE id = ?`)
     .run(name || company.name, industry !== undefined ? industry : company.industry, website !== undefined ? website : company.website,
-      phone !== undefined ? phone : company.phone, address !== undefined ? address : company.address, req.params.id);
+      phone !== undefined ? phone : company.phone, address !== undefined ? address : company.address,
+      country !== undefined ? country : company.country, is_fortune_500 !== undefined ? (is_fortune_500 ? 1 : 0) : company.is_fortune_500,
+      req.params.id);
   const updated = db.prepare('SELECT * FROM companies WHERE id = ?').get(req.params.id);
   res.json(updated);
 }

@@ -27,6 +27,9 @@ function runMigrations() {
   addColumn('contacts', 'partner_id', 'INTEGER REFERENCES partners(id)');
   addColumn('deal_stages', 'win_probability', 'REAL');
   addColumn('emails', 'ai_error', 'TEXT');
+  addColumn('companies', 'country', 'TEXT');
+  addColumn('companies', 'is_fortune_500', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('deals', 'priority', "TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high'))");
 
   // Seed default win_probability values
   const stagesToSeed = db.prepare('SELECT id, name, is_closed FROM deal_stages WHERE win_probability IS NULL').all();

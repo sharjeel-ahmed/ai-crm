@@ -328,9 +328,18 @@ function applySuggestion(db, type, data, userId, emailDate, emailId) {
           if (partner) partnerId = partner.id;
         }
         const ownerId = resolveDealOwnerId(db, emailId, userId);
+        // Auto-resolve priority based on company attributes
+        let priority = data.priority || 'medium';
+        if (companyId && priority === 'medium') {
+          const comp = db.prepare('SELECT country, is_fortune_500 FROM companies WHERE id = ?').get(companyId);
+          if (comp) {
+            const isUS = comp.country && comp.country.toLowerCase().match(/^(us|usa|united states|united states of america)$/);
+            if (isUS || comp.is_fortune_500) priority = 'high';
+          }
+        }
         const result = db.prepare(
-          "INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, lead_source, partner_id, ai_generated, notes, created_at, updated_at, stage_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'), ?)"
-        ).run(data.title || '', parseFloat(data.value) || 0, stageId, companyId, contactId, ownerId, data.lead_source || 'ai_email', partnerId, data.notes || '', tsValue);
+          "INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, lead_source, partner_id, ai_generated, notes, priority, created_at, updated_at, stage_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, datetime('now'), datetime('now'), ?)"
+        ).run(data.title || '', parseFloat(data.value) || 0, stageId, companyId, contactId, ownerId, data.lead_source || 'ai_email', partnerId, data.notes || '', priority, tsValue);
 
         // Log deal creation activity
         const stageName = db.prepare('SELECT name FROM deal_stages WHERE id = ?').get(stageId)?.name || 'Unknown';

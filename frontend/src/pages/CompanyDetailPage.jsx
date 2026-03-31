@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import Modal from '../components/common/Modal';
-import { Building2, ArrowLeft, Users, Briefcase, Globe, Phone, MapPin, Factory, Pencil } from 'lucide-react';
+import { Building2, ArrowLeft, Users, Briefcase, Globe, Phone, MapPin, Factory, Pencil, Flag } from 'lucide-react';
 import toast from 'react-hot-toast';
 import usePageTitle from '../hooks/usePageTitle';
 
@@ -22,7 +22,7 @@ export default function CompanyDetailPage() {
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', industry: '', website: '', phone: '', address: '' });
+  const [form, setForm] = useState({ name: '', industry: '', website: '', phone: '', address: '', country: '', is_fortune_500: false });
 
   const loadCompany = () => {
     return api.get(`/companies/${id}`)
@@ -42,6 +42,8 @@ export default function CompanyDetailPage() {
       website: company.website || '',
       phone: company.phone || '',
       address: company.address || '',
+      country: company.country || '',
+      is_fortune_500: !!company.is_fortune_500,
     });
     setModalOpen(true);
   };
@@ -81,6 +83,8 @@ export default function CompanyDetailPage() {
               {company.website && <span className="flex items-center gap-1"><Globe size={14} /> {company.website}</span>}
               {company.phone && <span className="flex items-center gap-1"><Phone size={14} /> {company.phone}</span>}
               {company.address && <span className="flex items-center gap-1"><MapPin size={14} /> {company.address}</span>}
+              {company.country && <span className="flex items-center gap-1"><Flag size={14} /> {company.country}</span>}
+              {company.is_fortune_500 ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Fortune 500</span> : null}
             </div>
           </div>
           <button onClick={openEditModal} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
@@ -163,6 +167,7 @@ export default function CompanyDetailPage() {
             { key: 'website', label: 'Website' },
             { key: 'phone', label: 'Phone' },
             { key: 'address', label: 'Address' },
+            { key: 'country', label: 'Country' },
           ].map(({ key, label, required }) => (
             <div key={key}>
               <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
@@ -175,6 +180,16 @@ export default function CompanyDetailPage() {
               />
             </div>
           ))}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="edit_is_fortune_500"
+              checked={form.is_fortune_500}
+              onChange={(e) => setForm({ ...form, is_fortune_500: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="edit_is_fortune_500" className="text-sm font-medium text-gray-700">Fortune 500 Company</label>
+          </div>
           <div className="flex justify-end gap-3 pt-4">
             <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
             <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>

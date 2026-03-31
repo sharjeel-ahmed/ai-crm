@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import usePageTitle from '../hooks/usePageTitle';
 
-const emptyForm = { name: '', industry: '', website: '', phone: '', address: '' };
+const emptyForm = { name: '', industry: '', website: '', phone: '', address: '', country: '', is_fortune_500: false };
 
 export default function CompaniesPage() {
   usePageTitle('Companies');
@@ -42,7 +42,7 @@ export default function CompaniesPage() {
   };
 
   const handleEdit = (company) => {
-    setForm({ name: company.name, industry: company.industry || '', website: company.website || '', phone: company.phone || '', address: company.address || '' });
+    setForm({ name: company.name, industry: company.industry || '', website: company.website || '', phone: company.phone || '', address: company.address || '', country: company.country || '', is_fortune_500: !!company.is_fortune_500 });
     setEditing(company.id);
     setModalOpen(true);
   };
@@ -65,6 +65,8 @@ export default function CompaniesPage() {
       </button>
     )},
     { key: 'industry', label: 'Industry' },
+    { key: 'country', label: 'Country' },
+    { key: 'is_fortune_500', label: 'Fortune 500', render: (row) => row.is_fortune_500 ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">F500</span> : null },
     { key: 'phone', label: 'Phone' },
     { key: 'website', label: 'Website' },
     {
@@ -97,6 +99,7 @@ export default function CompaniesPage() {
             { key: 'website', label: 'Website' },
             { key: 'phone', label: 'Phone' },
             { key: 'address', label: 'Address' },
+            { key: 'country', label: 'Country' },
           ].map(({ key, label, required }) => (
             <div key={key}>
               <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
@@ -109,6 +112,16 @@ export default function CompaniesPage() {
               />
             </div>
           ))}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="is_fortune_500"
+              checked={form.is_fortune_500}
+              onChange={(e) => setForm({ ...form, is_fortune_500: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="is_fortune_500" className="text-sm font-medium text-gray-700">Fortune 500 Company</label>
+          </div>
           <div className="flex justify-end gap-3 pt-4">
             <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
             <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>

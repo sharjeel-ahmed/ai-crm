@@ -70,6 +70,16 @@ function resolveOwnerId(db, ownerId, fallbackOwnerId) {
   return { ownerId: resolvedOwnerId, owner };
 }
 
+function resolvePriority(db, companyId, explicitPriority) {
+  if (explicitPriority) return explicitPriority;
+  if (!companyId) return 'medium';
+  const company = db.prepare('SELECT country, is_fortune_500 FROM companies WHERE id = ?').get(companyId);
+  if (!company) return 'medium';
+  const isUS = company.country && company.country.toLowerCase().match(/^(us|usa|united states|united states of america)$/);
+  if (isUS || company.is_fortune_500) return 'high';
+  return 'medium';
+}
+
 function getOwners(req, res) {
   const db = getDb();
   const owners = db.prepare(`
@@ -239,7 +249,7 @@ function getById(req, res) {
 }
 
 function create(req, res) {
-  const { title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id } = req.body;
+  const { title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id, priority } = req.body;
   if (!title || !stage_id) return res.status(400).json({ error: 'Title and stage required' });
   if (!company_id) return res.status(400).json({ error: 'Company is required' });
 
@@ -249,9 +259,10 @@ function create(req, res) {
     return res.status(400).json({ error: ownerResolution.error });
   }
 
+  const resolvedPriority = resolvePriority(db, company_id, priority);
   const maxPos = db.prepare('SELECT COALESCE(MAX(position), 0) + 1 as next FROM deals WHERE stage_id = ?').get(stage_id);
-  const result = db.prepare("INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id, position, stage_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))")
-    .run(title, value || 0, stage_id, company_id || null, contact_id || null, ownerResolution.ownerId, expected_close || null, notes || null, lead_source || null, partner_id || null, maxPos.next);
+  const result = db.prepare("INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id, priority, position, stage_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))")
+    .run(title, value || 0, stage_id, company_id || null, contact_id || null, ownerResolution.ownerId, expected_close || null, notes || null, lead_source || null, partner_id || null, resolvedPriority, maxPos.next);
   const deal = db.prepare(`
     SELECT d.*, ds.name as stage_name, c.name as company_name,
       ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
@@ -275,7 +286,7 @@ function create(req, res) {
 }
 
 function update(req, res) {
-  const { title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id } = req.body;
+  const { title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id, priority } = req.body;
   const db = getDb();
   const deal = db.prepare('SELECT * FROM deals WHERE id = ?').get(req.params.id);
   if (!deal) return res.status(404).json({ error: 'Deal not found' });
@@ -287,7 +298,8 @@ function update(req, res) {
 
   const newStageId = stage_id || deal.stage_id;
   const stageChanged = newStageId !== deal.stage_id;
-  db.prepare(`UPDATE deals SET title = ?, value = ?, stage_id = ?, company_id = ?, contact_id = ?, owner_id = ?, expected_close = ?, notes = ?, lead_source = ?, partner_id = ?, updated_at = datetime('now')${stageChanged ? ", stage_changed_at = datetime('now')" : ''} WHERE id = ?`)
+  const resolvedPriority = priority !== undefined ? priority : deal.priority;
+  db.prepare(`UPDATE deals SET title = ?, value = ?, stage_id = ?, company_id = ?, contact_id = ?, owner_id = ?, expected_close = ?, notes = ?, lead_source = ?, partner_id = ?, priority = ?, updated_at = datetime('now')${stageChanged ? ", stage_changed_at = datetime('now')" : ''} WHERE id = ?`)
     .run(
       title || deal.title, value !== undefined ? value : deal.value,
       newStageId,
@@ -298,6 +310,7 @@ function update(req, res) {
       notes !== undefined ? notes : deal.notes,
       lead_source !== undefined ? lead_source : deal.lead_source,
       partner_id !== undefined ? partner_id : deal.partner_id,
+      resolvedPriority,
       req.params.id
     );
   const updated = db.prepare(`
@@ -390,7 +403,7 @@ function merge(req, res) {
   }
 
   // Fill in missing fields on target from source
-  const fillFields = ['company_id', 'contact_id', 'partner_id', 'lead_source', 'expected_close', 'notes'];
+  const fillFields = ['company_id', 'contact_id', 'partner_id', 'lead_source', 'expected_close', 'notes', 'priority'];
   for (const field of fillFields) {
     if (!target[field] && source[field]) {
       db.prepare(`UPDATE deals SET ${field} = ? WHERE id = ?`).run(source[field], targetDealId);
