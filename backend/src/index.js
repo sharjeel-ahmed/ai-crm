@@ -57,6 +57,7 @@ app.use('/api/ignore-list', require('./routes/ignoreList'));
 app.use('/api/partners', require('./routes/partners'));
 app.use('/api/api-keys', require('./routes/apiKeys'));
 app.use('/api/v1', require('./routes/v1'));
+app.use('/api/push', require('./routes/push'));
 
 // Serve API docs and Postman collection
 const path = require('path');
@@ -99,4 +100,8 @@ app.listen(PORT, () => {
   // Start background email worker
   const { startWorker } = require('./services/gmail/worker');
   startWorker();
+
+  // Start push notification worker
+  const { startWorker: startPushWorker } = require('./services/pushWorker');
+  startPushWorker();
 });

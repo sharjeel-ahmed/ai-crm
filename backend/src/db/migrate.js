@@ -27,6 +27,7 @@ function runMigrations() {
   addColumn('contacts', 'partner_id', 'INTEGER REFERENCES partners(id)');
   addColumn('deal_stages', 'win_probability', 'REAL');
   addColumn('emails', 'ai_error', 'TEXT');
+  addColumn('activities', 'push_notified_at', 'TEXT');
   addColumn('companies', 'country', 'TEXT');
   addColumn('companies', 'is_fortune_500', 'INTEGER NOT NULL DEFAULT 0');
   addColumn('deals', 'priority', "TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high'))");
