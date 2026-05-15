@@ -5,10 +5,20 @@ import { Zap, CheckCircle, AlertCircle } from 'lucide-react';
 
 const providerModels = {
   'claude-cli': ['claude-cli'],
+  'codex-cli': [],
   claude: ['claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001', 'claude-opus-4-20250514'],
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
   gemini: ['gemini-2.0-flash', 'gemini-2.5-pro', 'gemini-2.5-flash'],
   openrouter: ['anthropic/claude-sonnet-4', 'openai/gpt-4o', 'google/gemini-2.0-flash-001'],
+};
+
+const providerLabels = {
+  'claude-cli': 'Claude CLI',
+  'codex-cli': 'Codex CLI',
+  claude: 'Claude',
+  openai: 'OpenAI',
+  gemini: 'Gemini',
+  openrouter: 'OpenRouter',
 };
 
 export default function AIProviderForm() {
@@ -70,7 +80,7 @@ export default function AIProviderForm() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
           <div className="grid grid-cols-2 gap-2">
-            {['claude-cli', 'claude', 'openai', 'gemini', 'openrouter'].map(p => (
+            {['claude-cli', 'codex-cli', 'claude', 'openai', 'gemini', 'openrouter'].map(p => (
               <button
                 key={p}
                 onClick={() => handleProviderChange(p)}
@@ -78,13 +88,13 @@ export default function AIProviderForm() {
                   form.provider === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                {p.charAt(0).toUpperCase() + p.slice(1)}
+                {providerLabels[p] || p}
               </button>
             ))}
           </div>
         </div>
 
-        {form.provider !== 'claude-cli' && (
+        {!['claude-cli', 'codex-cli'].includes(form.provider) && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
             <input
@@ -99,8 +109,12 @@ export default function AIProviderForm() {
         {form.provider === 'claude-cli' && (
           <p className="text-sm text-gray-500">Uses locally authenticated Claude CLI — no API key needed.</p>
         )}
+        {form.provider === 'codex-cli' && (
+          <p className="text-sm text-gray-500">Uses locally authenticated Codex CLI — no API key needed.</p>
+        )}
 
-        <div>
+        {models.length > 0 && (
+          <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
           <select
             value={form.model}
@@ -109,7 +123,8 @@ export default function AIProviderForm() {
           >
             {models.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
-        </div>
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <input
@@ -140,7 +155,7 @@ export default function AIProviderForm() {
                 <div key={s.id} className="flex items-center justify-between text-sm p-2 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-2">
                     {s.is_active ? <CheckCircle size={16} className="text-green-500" /> : <AlertCircle size={16} className="text-gray-400" />}
-                    <span className="font-medium">{s.provider}</span>
+                    <span className="font-medium">{providerLabels[s.provider] || s.provider}</span>
                     <span className="text-gray-500">{s.model}</span>
                   </div>
                   <span className="text-gray-400">{s.api_key}</span>

@@ -94,7 +94,7 @@ async function testConnection(req, res) {
   if (!settings) {
     return res.status(400).json({ error: 'Provider not configured' });
   }
-  if (provider !== 'claude-cli' && !settings.api_key) {
+  if (!['claude-cli', 'codex-cli'].includes(provider) && !settings.api_key) {
     return res.status(400).json({ error: 'No API key configured for this provider' });
   }
 

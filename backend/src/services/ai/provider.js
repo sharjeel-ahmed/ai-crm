@@ -1,4 +1,5 @@
 const claudeProvider = require('./claudeProvider');
+const codexProvider = require('./codexProvider');
 const openaiProvider = require('./openaiProvider');
 const geminiProvider = require('./geminiProvider');
 const openrouterProvider = require('./openrouterProvider');
@@ -7,6 +8,7 @@ const { buildUserPrompt, getSystemPrompt } = require('./extractionPrompt');
 
 const providers = {
   claude: claudeProvider,
+  'codex-cli': codexProvider,
   openai: openaiProvider,
   gemini: geminiProvider,
   openrouter: openrouterProvider,

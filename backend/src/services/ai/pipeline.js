@@ -63,7 +63,7 @@ async function processOneEmail(email) {
   const db = getDb();
   try {
     const aiSettings = db.prepare('SELECT * FROM ai_settings WHERE client_id = ? AND is_active = 1 LIMIT 1').get(email.client_id);
-    if (!aiSettings || (aiSettings.provider !== 'claude-cli' && !aiSettings.api_key)) {
+    if (!aiSettings || (!['claude-cli', 'codex-cli'].includes(aiSettings.provider) && !aiSettings.api_key)) {
       db.prepare('UPDATE emails SET ai_error = ? WHERE id = ?').run('No active AI provider configured for client', email.id);
       return { success: false, fatal: false, error: 'No active AI provider configured for client' };
     }
