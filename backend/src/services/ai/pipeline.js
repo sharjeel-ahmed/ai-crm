@@ -141,6 +141,19 @@ async function processOneEmail(email) {
   }
 }
 
+async function retryEmailById(emailId, clientId) {
+  const db = getDb();
+  const email = db.prepare('SELECT * FROM emails WHERE id = ? AND client_id = ?').get(emailId, clientId);
+  if (!email) {
+    return { success: false, fatal: false, error: 'Email not found' };
+  }
+
+  db.prepare('DELETE FROM ai_suggestions WHERE email_id = ?').run(email.id);
+  db.prepare('UPDATE emails SET ai_error = NULL, ai_processed = 0 WHERE id = ?').run(email.id);
+
+  return processOneEmail(email);
+}
+
 async function processUnprocessedEmails() {
   const db = getDb();
 
@@ -224,4 +237,4 @@ async function processUnprocessedEmails() {
   return { processed: totalProcessed, errors: totalErrors };
 }
 
-module.exports = { processUnprocessedEmails };
+module.exports = { processUnprocessedEmails, processOneEmail, retryEmailById };

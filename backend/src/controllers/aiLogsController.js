@@ -1,5 +1,6 @@
 const { getDb } = require('../db/connection');
 const { getEffectiveClientId } = require('../utils/tenant');
+const { retryEmailById } = require('../services/ai/pipeline');
 
 function getLogs(req, res) {
   const db = getDb();
@@ -115,4 +116,25 @@ function deleteFromHere(req, res) {
   res.json({ success: true, deleted: ids.length });
 }
 
-module.exports = { getLogs, deleteLog, deleteFromHere };
+async function retryLog(req, res) {
+  const db = getDb();
+  const { id } = req.params;
+  const clientId = getEffectiveClientId(req, db);
+
+  const email = db.prepare('SELECT id, ai_error FROM emails WHERE id = ? AND client_id = ?').get(parseInt(id), clientId);
+  if (!email) return res.status(404).json({ error: 'Email log not found' });
+  if (!email.ai_error) return res.status(400).json({ error: 'This email does not have an AI error to retry' });
+
+  try {
+    const result = await retryEmailById(email.id, clientId);
+    if (!result.success) {
+      return res.status(result.fatal ? 502 : 400).json({ error: result.error || 'Retry failed' });
+    }
+
+    res.json({ success: true, message: 'AI call retried successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Retry failed' });
+  }
+}
+
+module.exports = { getLogs, deleteLog, deleteFromHere, retryLog };

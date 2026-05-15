@@ -44,6 +44,7 @@ export default function AILogsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [retryingId, setRetryingId] = useState(null);
   const [expanded, setExpanded] = useState(new Set());
   const [activeTab, setActiveTab] = useState({});
 
@@ -87,6 +88,19 @@ export default function AILogsPage() {
       loadLogs();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error deleting logs');
+    }
+  };
+
+  const handleRetry = async (log) => {
+    setRetryingId(log.id);
+    try {
+      const res = await api.post(`/ai-logs/${log.id}/retry`);
+      toast.success(res.data.message || 'AI call retried');
+      loadLogs();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error retrying AI call');
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -233,6 +247,16 @@ export default function AILogsPage() {
                     >
                       <ChevronsRight size={14} />
                     </button>
+                    {hasError && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleRetry(log); }}
+                        disabled={retryingId === log.id}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Retry AI for this email"
+                      >
+                        <RefreshCw size={14} className={retryingId === log.id ? 'animate-spin' : ''} />
+                      </button>
+                    )}
                   </div>
 
                   {/* Action badge */}
