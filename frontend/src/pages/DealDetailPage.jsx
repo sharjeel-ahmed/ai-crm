@@ -440,7 +440,7 @@ export default function DealDetailPage() {
                 <option value="neutral">neutral</option>
                 <option value="negative">negative</option>
               </select>
-              <p className="mt-1 text-xs text-gray-500">Manual sentiment keeps this value from being overwritten by email-derived scoring.</p>
+              <p className="mt-1 text-xs text-gray-500">Manual edits are allowed, but AI can later overwrite the sentiment from email activity.</p>
             </div>
           </div>
           <div>
