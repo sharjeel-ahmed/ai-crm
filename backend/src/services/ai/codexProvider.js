@@ -7,7 +7,6 @@ function runCodex(input, model) {
       'exec',
       '--json',
       '--skip-git-repo-check',
-      '--ignore-user-config',
     ];
 
     if (model) {
