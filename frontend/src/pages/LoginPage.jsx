@@ -16,9 +16,10 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
+      const { user: loggedIn } = await login(email, password);
       toast.success('Welcome back!');
-      navigate('/dashboard');
+      const isGlobalAdmin = loggedIn && loggedIn.role === 'admin' && !loggedIn.client_id;
+      navigate(isGlobalAdmin ? '/saas-admin' : '/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Login failed');
     } finally {

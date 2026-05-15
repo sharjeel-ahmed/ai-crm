@@ -9,7 +9,12 @@ function login(req, res) {
   }
 
   const db = getDb();
-  const user = db.prepare('SELECT * FROM users WHERE email = ? AND is_active = 1').get(email);
+  const user = db.prepare(`
+    SELECT u.*, c.name AS client_name, c.slug AS client_slug
+    FROM users u
+    LEFT JOIN clients c ON c.id = u.client_id
+    WHERE u.email = ? AND u.is_active = 1
+  `).get(email);
   if (!user) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
@@ -26,7 +31,12 @@ function login(req, res) {
 
 function getMe(req, res) {
   const db = getDb();
-  const user = db.prepare('SELECT id, name, email, role, is_active, created_at FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare(`
+    SELECT u.id, u.name, u.email, u.role, u.is_active, u.created_at, u.client_id, c.name AS client_name, c.slug AS client_slug
+    FROM users u
+    LEFT JOIN clients c ON c.id = u.client_id
+    WHERE u.id = ?
+  `).get(req.user.id);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
@@ -76,7 +86,12 @@ function updateMe(req, res) {
     throw err;
   }
 
-  const updated = db.prepare('SELECT id, name, email, role, is_active, created_at FROM users WHERE id = ?').get(req.user.id);
+  const updated = db.prepare(`
+    SELECT u.id, u.name, u.email, u.role, u.is_active, u.created_at, u.client_id, c.name AS client_name, c.slug AS client_slug
+    FROM users u
+    LEFT JOIN clients c ON c.id = u.client_id
+    WHERE u.id = ?
+  `).get(req.user.id);
   res.json(updated);
 }
 

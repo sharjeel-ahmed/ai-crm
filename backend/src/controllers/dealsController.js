@@ -1,6 +1,7 @@
 const { getDb } = require('../db/connection');
 const { refreshDealSentiment } = require('../services/deals/sentiment');
 const { syncDealLifecycleStates, includeClosed, activeDealClause } = require('../services/deals/lifecycle');
+const { getClientFilter, getEffectiveClientId } = require('../utils/tenant');
 
 function parseDbDate(value) {
   if (!value) return null;
@@ -22,6 +23,9 @@ function withDaysInStage(deal) {
 function scopeQuery(req) {
   let where = '';
   const params = [];
+  const clientFilter = getClientFilter(req, 'd');
+  where += clientFilter.clause;
+  params.push(...clientFilter.params);
 
   if (req.user.role === 'sales_rep') {
     where += ' AND d.owner_id = ?';
@@ -47,12 +51,27 @@ function scopeQuery(req) {
   return { where, params };
 }
 
+function getScopedDeal(db, req, dealId) {
+  let query = 'SELECT * FROM deals WHERE id = ?';
+  const params = [dealId];
+  const clientFilter = getClientFilter(req);
+  query += clientFilter.clause;
+  params.push(...clientFilter.params);
+
+  if (req.user.role === 'sales_rep') {
+    query += ' AND owner_id = ?';
+    params.push(req.user.id);
+  }
+
+  return db.prepare(query).get(...params);
+}
+
 function getOwnerById(db, ownerId) {
   if (!ownerId) return null;
   return db.prepare('SELECT id, name, email, role FROM users WHERE id = ? AND is_active = 1').get(ownerId);
 }
 
-function resolveOwnerId(db, ownerId, fallbackOwnerId) {
+function resolveOwnerId(db, ownerId, fallbackOwnerId, req) {
   const resolvedOwnerId = ownerId !== undefined && ownerId !== null && ownerId !== '' ? parseInt(ownerId, 10) : fallbackOwnerId;
   if (!resolvedOwnerId) {
     return { error: 'Owner is required' };
@@ -65,6 +84,9 @@ function resolveOwnerId(db, ownerId, fallbackOwnerId) {
   const owner = getOwnerById(db, resolvedOwnerId);
   if (!owner) {
     return { error: 'Selected owner was not found or is inactive' };
+  }
+  if (req.user.client_id && owner.client_id !== req.user.client_id) {
+    return { error: 'Selected owner belongs to a different client' };
   }
 
   return { ownerId: resolvedOwnerId, owner };
@@ -82,12 +104,14 @@ function resolvePriority(db, companyId, explicitPriority) {
 
 function getOwners(req, res) {
   const db = getDb();
+  const filter = req.user.client_id ? 'AND client_id = ?' : '';
   const owners = db.prepare(`
     SELECT id, name, email, role
     FROM users
     WHERE is_active = 1
+    ${filter}
     ORDER BY name
-  `).all();
+  `).all(...(req.user.client_id ? [req.user.client_id] : []));
   res.json(owners);
 }
 
@@ -116,7 +140,8 @@ function getPipeline(req, res) {
   const db = getDb();
   syncDealLifecycleStates(db);
   const scope = scopeQuery(req);
-  const stages = db.prepare('SELECT * FROM deal_stages ORDER BY display_order').all();
+  const stageClientId = getEffectiveClientId(req, db);
+  const stages = db.prepare('SELECT * FROM deal_stages WHERE client_id = ? ORDER BY display_order').all(stageClientId);
   const lifecycleClause = includeClosed(req) ? '' : ` ${activeDealClause('d')}`;
   const deals = db.prepare(`
     SELECT d.*, ds.name as stage_name, c.name as company_name,
@@ -142,6 +167,9 @@ function getPipeline(req, res) {
 function getById(req, res) {
   const db = getDb();
   syncDealLifecycleStates(db);
+  const scopedDeal = getScopedDeal(db, req, req.params.id);
+  if (!scopedDeal) return res.status(404).json({ error: 'Deal not found' });
+
   const dealRow = db.prepare(`
     SELECT d.*, ds.name as stage_name, c.name as company_name,
       ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
@@ -153,19 +181,22 @@ function getById(req, res) {
     LEFT JOIN users u ON d.owner_id = u.id
     LEFT JOIN partners p ON d.partner_id = p.id
     WHERE d.id = ?
-  `).get(req.params.id);
-  if (!dealRow) return res.status(404).json({ error: 'Deal not found' });
+  `).get(scopedDeal.id);
   const deal = withDaysInStage(refreshDealSentiment(db, dealRow));
 
   // Get contacts linked to the same company
+  const contactWhere = req.user.role === 'sales_rep' ? 'AND ct.owner_id = ?' : '';
+  const contactParams = req.user.role === 'sales_rep' ? [deal.company_id, req.user.id] : [deal.company_id];
   const contacts = deal.company_id
     ? db.prepare(`
         SELECT ct.*, u.name as owner_name
         FROM contacts ct
         LEFT JOIN users u ON ct.owner_id = u.id
         WHERE ct.company_id = ?
+        AND ct.client_id = ?
+        ${contactWhere}
         ORDER BY ct.last_name, ct.first_name
-      `).all(deal.company_id)
+      `).all(deal.company_id, deal.client_id, ...(req.user.role === 'sales_rep' ? [req.user.id] : []))
     : [];
 
   // Get activities linked to this deal OR to any of the deal's company contacts
@@ -183,8 +214,8 @@ function getById(req, res) {
       LEFT JOIN users u ON a.user_id = u.id
       LEFT JOIN deals d ON a.deal_id = d.id
       LEFT JOIN contacts ct ON a.contact_id = ct.id
-      WHERE a.deal_id = ? OR a.contact_id IN (${contactPlaceholders})
-    `).all(req.params.id, ...contactIds);
+      WHERE a.client_id = ? AND (a.deal_id = ? OR a.contact_id IN (${contactPlaceholders}))
+    `).all(deal.client_id, req.params.id, ...contactIds);
   } else {
     dealActivities = db.prepare(`
       SELECT a.id, a.type, a.subject, a.description, a.created_at, a.ai_generated,
@@ -196,8 +227,8 @@ function getById(req, res) {
       LEFT JOIN users u ON a.user_id = u.id
       LEFT JOIN deals d ON a.deal_id = d.id
       LEFT JOIN contacts ct ON a.contact_id = ct.id
-      WHERE a.deal_id = ?
-    `).all(req.params.id);
+      WHERE a.client_id = ? AND a.deal_id = ?
+    `).all(deal.client_id, req.params.id);
   }
 
   // Get related emails (from/to contacts of the deal's company)
@@ -211,13 +242,14 @@ function getById(req, res) {
         SELECT e.id, e.subject, e.from_address, e.from_name, e.to_addresses,
                e.date as created_at, e.is_inbound, 'email' as source
         FROM emails e
-        WHERE LOWER(e.from_address) IN (${placeholders})
+        WHERE e.client_id = ?
+          AND (LOWER(e.from_address) IN (${placeholders})
            OR EXISTS (
              SELECT 1 FROM json_each(e.to_addresses) je
              WHERE LOWER(TRIM(je.value, '"')) IN (${lowerEmails.map(() => '?').join(',')})
-           )
+           ))
         ORDER BY e.date DESC
-      `).all(...lowerEmails, ...lowerEmails);
+      `).all(deal.client_id, ...lowerEmails, ...lowerEmails);
     }
   }
 
@@ -254,7 +286,7 @@ function create(req, res) {
   if (!company_id) return res.status(400).json({ error: 'Company is required' });
 
   const db = getDb();
-  const ownerResolution = resolveOwnerId(db, owner_id, req.user.id);
+  const ownerResolution = resolveOwnerId(db, owner_id, req.user.id, req);
   if (ownerResolution.error) {
     return res.status(400).json({ error: ownerResolution.error });
   }
@@ -263,6 +295,7 @@ function create(req, res) {
   const maxPos = db.prepare('SELECT COALESCE(MAX(position), 0) + 1 as next FROM deals WHERE stage_id = ?').get(stage_id);
   const result = db.prepare("INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id, priority, position, stage_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))")
     .run(title, value || 0, stage_id, company_id || null, contact_id || null, ownerResolution.ownerId, expected_close || null, notes || null, lead_source || null, partner_id || null, resolvedPriority, maxPos.next);
+  db.prepare('UPDATE deals SET client_id = ? WHERE id = ?').run(getEffectiveClientId(req, db), result.lastInsertRowid);
   const deal = db.prepare(`
     SELECT d.*, ds.name as stage_name, c.name as company_name,
       ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
@@ -279,8 +312,8 @@ function create(req, res) {
 
   // Log deal creation activity
   db.prepare(
-    "INSERT INTO activities (type, subject, description, deal_id, user_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, datetime('now'), datetime('now'))"
-  ).run(`Deal created`, `Deal "${title}" created in stage ${deal.stage_name}${deal.company_name ? ` for ${deal.company_name}` : ''}`, deal.id, req.user.id);
+    "INSERT INTO activities (type, subject, description, deal_id, user_id, client_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))"
+  ).run(`Deal created`, `Deal "${title}" created in stage ${deal.stage_name}${deal.company_name ? ` for ${deal.company_name}` : ''}`, deal.id, req.user.id, getEffectiveClientId(req, db));
 
   res.status(201).json(sentimentDeal);
 }
@@ -288,10 +321,10 @@ function create(req, res) {
 function update(req, res) {
   const { title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id, priority } = req.body;
   const db = getDb();
-  const deal = db.prepare('SELECT * FROM deals WHERE id = ?').get(req.params.id);
+  const deal = getScopedDeal(db, req, req.params.id);
   if (!deal) return res.status(404).json({ error: 'Deal not found' });
 
-  const ownerResolution = resolveOwnerId(db, owner_id, deal.owner_id);
+  const ownerResolution = resolveOwnerId(db, owner_id, deal.owner_id, req);
   if (ownerResolution.error) {
     return res.status(400).json({ error: ownerResolution.error });
   }
@@ -331,7 +364,7 @@ function updateStage(req, res) {
   if (!stage_id) return res.status(400).json({ error: 'stage_id required' });
 
   const db = getDb();
-  const deal = db.prepare('SELECT * FROM deals WHERE id = ?').get(req.params.id);
+  const deal = getScopedDeal(db, req, req.params.id);
   if (!deal) return res.status(404).json({ error: 'Deal not found' });
 
   const oldStage = db.prepare('SELECT name FROM deal_stages WHERE id = ?').get(deal.stage_id);
@@ -344,8 +377,8 @@ function updateStage(req, res) {
   // Log stage movement activity
   if (deal.stage_id !== stage_id) {
     db.prepare(
-      "INSERT INTO activities (type, subject, description, deal_id, user_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, datetime('now'), datetime('now'))"
-    ).run('Stage changed', `Moved from ${oldStage?.name || 'Unknown'} to ${newStage?.name || 'Unknown'}`, req.params.id, req.user.id);
+      "INSERT INTO activities (type, subject, description, deal_id, user_id, client_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))"
+    ).run('Stage changed', `Moved from ${oldStage?.name || 'Unknown'} to ${newStage?.name || 'Unknown'}`, req.params.id, req.user.id, deal.client_id);
   }
 
   res.json({ message: 'Stage updated' });
@@ -361,7 +394,7 @@ function updateLifecycle(req, res) {
   }
 
   const db = getDb();
-  const deal = db.prepare('SELECT * FROM deals WHERE id = ?').get(req.params.id);
+  const deal = getScopedDeal(db, req, req.params.id);
   if (!deal) return res.status(404).json({ error: 'Deal not found' });
 
   const closedAt = lifecycle_state === 'closed' ? "datetime('now')" : 'NULL';
@@ -369,12 +402,13 @@ function updateLifecycle(req, res) {
     .run(lifecycle_state, req.params.id);
 
   db.prepare(
-    "INSERT INTO activities (type, subject, description, deal_id, user_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, datetime('now'), datetime('now'))"
+    "INSERT INTO activities (type, subject, description, deal_id, user_id, client_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))"
   ).run(
     lifecycle_state === 'closed' ? 'Deal closed' : 'Deal reopened',
     lifecycle_state === 'closed' ? 'Deal manually closed by admin' : 'Deal manually reopened by admin',
     req.params.id,
-    req.user.id
+    req.user.id,
+    deal.client_id
   );
 
   res.json({ message: `Deal ${lifecycle_state === 'closed' ? 'closed' : 'reopened'}` });
@@ -389,8 +423,8 @@ function merge(req, res) {
   if (req.user.role !== 'admin' && req.user.role !== 'manager') return res.status(403).json({ error: 'Only admins and managers can merge deals' });
 
   const db = getDb();
-  const target = db.prepare('SELECT * FROM deals WHERE id = ?').get(targetDealId);
-  const source = db.prepare('SELECT d.*, ds.name as stage_name FROM deals d LEFT JOIN deal_stages ds ON ds.id = d.stage_id WHERE d.id = ?').get(sourceDealId);
+  const target = getScopedDeal(db, req, targetDealId);
+  const source = getScopedDeal(db, req, sourceDealId);
   if (!target) return res.status(404).json({ error: 'Target deal not found' });
   if (!source) return res.status(404).json({ error: 'Source deal not found' });
 
@@ -412,8 +446,8 @@ function merge(req, res) {
 
   // Log the merge as an activity
   db.prepare(
-    "INSERT INTO activities (type, subject, description, deal_id, user_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, datetime('now'), datetime('now'))"
-  ).run('Deals merged', `Merged deal "${source.title}" (${source.stage_name || 'Unknown'} stage) into this deal`, targetDealId, req.user.id);
+    "INSERT INTO activities (type, subject, description, deal_id, user_id, client_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))"
+  ).run('Deals merged', `Merged deal "${source.title}" into this deal`, targetDealId, req.user.id, target.client_id);
 
   // Delete the source deal
   db.prepare('DELETE FROM deals WHERE id = ?').run(sourceDealId);
@@ -423,8 +457,10 @@ function merge(req, res) {
 
 function remove(req, res) {
   const db = getDb();
-  const result = db.prepare('DELETE FROM deals WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Deal not found' });
+  const deal = getScopedDeal(db, req, req.params.id);
+  if (!deal) return res.status(404).json({ error: 'Deal not found' });
+
+  db.prepare('DELETE FROM deals WHERE id = ?').run(req.params.id);
   res.json({ message: 'Deal deleted' });
 }
 

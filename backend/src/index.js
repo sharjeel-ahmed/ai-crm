@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const { runMigrations } = require('./db/migrate');
 const { addColumns } = require('./db/addColumns');
 const { errorHandler } = require('./middleware/errorHandler');
+const { ensureDefaultClient, ensureClientDefaults } = require('./services/clientDefaults');
 
 // Run migrations on startup
 runMigrations();
@@ -17,13 +18,8 @@ const bcrypt = require('bcryptjs');
 const { getDb } = require('./db/connection');
 const db = getDb();
 
-const stageCount = db.prepare('SELECT COUNT(*) as count FROM deal_stages').get();
-if (stageCount.count === 0) {
-  const insertStage = db.prepare('INSERT INTO deal_stages (name, display_order, is_closed) VALUES (?, ?, ?)');
-  [['Lead', 1, 0], ['Qualified', 2, 0], ['Proposal', 3, 0], ['Negotiation', 4, 0], ['Won', 5, 1], ['Lost', 6, 1]]
-    .forEach(([name, order, closed]) => insertStage.run(name, order, closed));
-  console.log('Default stages seeded');
-}
+const defaultClient = ensureDefaultClient(db);
+ensureClientDefaults(db, defaultClient.id);
 
 const adminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get();
 if (adminCount.count === 0) {
@@ -40,24 +36,30 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+const { authenticate } = require('./middleware/auth');
+const { blockGlobalAdmin } = require('./middleware/blockGlobalAdmin');
+const tenantGuard = [authenticate, blockGlobalAdmin];
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
-app.use('/api/companies', require('./routes/companies'));
-app.use('/api/contacts', require('./routes/contacts'));
-app.use('/api/deals', require('./routes/deals'));
-app.use('/api/activities', require('./routes/activities'));
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/stages', require('./routes/stages'));
-app.use('/api/email-accounts', require('./routes/emailAccounts'));
-app.use('/api/ai-settings', require('./routes/aiSettings'));
-app.use('/api/suggestions', require('./routes/suggestions'));
-app.use('/api/auto-approve', require('./routes/autoApprove'));
-app.use('/api/ai-logs', require('./routes/aiLogs'));
-app.use('/api/ignore-list', require('./routes/ignoreList'));
-app.use('/api/partners', require('./routes/partners'));
-app.use('/api/api-keys', require('./routes/apiKeys'));
+app.use('/api/clients', require('./routes/clients'));
+app.use('/api/companies', tenantGuard, require('./routes/companies'));
+app.use('/api/contacts', tenantGuard, require('./routes/contacts'));
+app.use('/api/deals', tenantGuard, require('./routes/deals'));
+app.use('/api/activities', tenantGuard, require('./routes/activities'));
+app.use('/api/reports', tenantGuard, require('./routes/reports'));
+app.use('/api/stages', tenantGuard, require('./routes/stages'));
+app.use('/api/email-accounts', tenantGuard, require('./routes/emailAccounts'));
+app.use('/api/ai-settings', tenantGuard, require('./routes/aiSettings'));
+app.use('/api/suggestions', tenantGuard, require('./routes/suggestions'));
+app.use('/api/auto-approve', tenantGuard, require('./routes/autoApprove'));
+app.use('/api/ai-logs', tenantGuard, require('./routes/aiLogs'));
+app.use('/api/ignore-list', tenantGuard, require('./routes/ignoreList'));
+app.use('/api/partners', tenantGuard, require('./routes/partners'));
+app.use('/api/api-keys', tenantGuard, require('./routes/apiKeys'));
 app.use('/api/v1', require('./routes/v1'));
 app.use('/api/push', require('./routes/push'));
+app.use('/api/db-viewer', require('./routes/dbViewer'));
 
 // Serve API docs and Postman collection
 const path = require('path');
@@ -79,19 +81,12 @@ app.use(errorHandler);
 
 // SPA fallback — serve index.html for non-API routes
 app.use((req, res) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(frontendDist, 'index.html'));
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'Not found' });
   }
-});
 
-// Seed default auto-approve rules
-const ruleCount = db.prepare('SELECT COUNT(*) as count FROM auto_approve_rules').get();
-if (ruleCount.count === 0) {
-  const insertRule = db.prepare('INSERT INTO auto_approve_rules (suggestion_type, confidence_threshold, is_enabled) VALUES (?, ?, ?)');
-  ['create_contact', 'create_company', 'create_deal', 'log_activity', 'update_contact', 'move_deal_stage']
-    .forEach(type => insertRule.run(type, 0.95, 0));
-  console.log('Default auto-approve rules seeded');
-}
+  res.sendFile(path.join(frontendDist, 'index.html'));
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

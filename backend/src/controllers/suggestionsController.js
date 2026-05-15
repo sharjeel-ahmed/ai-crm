@@ -1,4 +1,5 @@
 const { getDb } = require('../db/connection');
+const { getEffectiveClientId } = require('../utils/tenant');
 
 function normalizeEmailAddress(value) {
   if (!value) return null;
@@ -25,26 +26,27 @@ function parseEmailArray(value) {
     .filter(Boolean);
 }
 
-function getActiveUserByEmail(db, email) {
+function getActiveUserByEmail(db, email, clientId) {
   const normalizedEmail = normalizeEmailAddress(email);
   if (!normalizedEmail) return null;
 
   return db.prepare(`
-    SELECT u.id, u.name, u.email, u.role
+    SELECT u.id, u.name, u.email, u.role, u.client_id
     FROM users u
     LEFT JOIN email_accounts ea
       ON ea.user_id = u.id
      AND LOWER(ea.email_address) = ?
     WHERE u.is_active = 1
+      AND (? IS NULL OR u.client_id = ?)
       AND (LOWER(u.email) = ? OR ea.id IS NOT NULL)
     ORDER BY CASE WHEN LOWER(u.email) = ? THEN 0 ELSE 1 END, u.id
     LIMIT 1
-  `).get(normalizedEmail, normalizedEmail, normalizedEmail);
+  `).get(normalizedEmail, clientId, clientId, normalizedEmail, normalizedEmail);
 }
 
 function getOwnerById(db, ownerId) {
   if (!ownerId) return null;
-  return db.prepare('SELECT id, name, email, role FROM users WHERE id = ? AND is_active = 1').get(ownerId);
+  return db.prepare('SELECT id, name, email, role, client_id FROM users WHERE id = ? AND is_active = 1').get(ownerId);
 }
 
 function resolveDealOwnerId(db, emailId, fallbackOwnerId) {
@@ -52,7 +54,7 @@ function resolveDealOwnerId(db, emailId, fallbackOwnerId) {
   if (!emailId) return fallbackOwner?.id || fallbackOwnerId;
 
   const email = db.prepare(`
-    SELECT e.from_address, e.to_addresses, ea.user_id AS mailbox_user_id
+    SELECT e.from_address, e.to_addresses, e.client_id, ea.user_id AS mailbox_user_id
     FROM emails e
     LEFT JOIN email_accounts ea ON ea.id = e.email_account_id
     WHERE e.id = ?
@@ -71,11 +73,11 @@ function resolveDealOwnerId(db, emailId, fallbackOwnerId) {
     candidateUserIds.push(userId);
   };
 
-  addCandidate(getActiveUserByEmail(db, email.from_address)?.id);
+  addCandidate(getActiveUserByEmail(db, email.from_address, email.client_id)?.id);
   addCandidate(email.mailbox_user_id);
 
   for (const address of parseEmailArray(email.to_addresses)) {
-    addCandidate(getActiveUserByEmail(db, address)?.id);
+    addCandidate(getActiveUserByEmail(db, address, email.client_id)?.id);
   }
 
   if (candidateUserIds.length > 0) {
@@ -88,9 +90,10 @@ function resolveDealOwnerId(db, emailId, fallbackOwnerId) {
 function getAll(req, res) {
   const db = getDb();
   const { status, type, min_confidence, max_confidence, limit = 50, offset = 0 } = req.query;
+  const clientId = getEffectiveClientId(req, db);
 
-  let where = [];
-  let params = [];
+  let where = ['s.client_id = ?'];
+  let params = [clientId];
 
   if (status) {
     where.push('s.status = ?');
@@ -127,11 +130,12 @@ function getAll(req, res) {
 
 function getStats(req, res) {
   const db = getDb();
+  const clientId = getEffectiveClientId(req, db);
   const stats = {
-    pending: db.prepare("SELECT COUNT(*) as count FROM ai_suggestions WHERE status = 'pending'").get().count,
-    approved: db.prepare("SELECT COUNT(*) as count FROM ai_suggestions WHERE status = 'approved'").get().count,
-    auto_approved: db.prepare("SELECT COUNT(*) as count FROM ai_suggestions WHERE status = 'auto_approved'").get().count,
-    dismissed: db.prepare("SELECT COUNT(*) as count FROM ai_suggestions WHERE status = 'dismissed'").get().count,
+    pending: db.prepare("SELECT COUNT(*) as count FROM ai_suggestions WHERE client_id = ? AND status = 'pending'").get(clientId).count,
+    approved: db.prepare("SELECT COUNT(*) as count FROM ai_suggestions WHERE client_id = ? AND status = 'approved'").get(clientId).count,
+    auto_approved: db.prepare("SELECT COUNT(*) as count FROM ai_suggestions WHERE client_id = ? AND status = 'auto_approved'").get(clientId).count,
+    dismissed: db.prepare("SELECT COUNT(*) as count FROM ai_suggestions WHERE client_id = ? AND status = 'dismissed'").get(clientId).count,
   };
   res.json(stats);
 }
@@ -139,8 +143,9 @@ function getStats(req, res) {
 function approve(req, res) {
   const db = getDb();
   const { id } = req.params;
+  const clientId = getEffectiveClientId(req, db);
 
-  const suggestion = db.prepare('SELECT * FROM ai_suggestions WHERE id = ?').get(id);
+  const suggestion = db.prepare('SELECT * FROM ai_suggestions WHERE id = ? AND client_id = ?').get(id, clientId);
   if (!suggestion) return res.status(404).json({ error: 'Suggestion not found' });
   if (suggestion.status !== 'pending') return res.status(400).json({ error: 'Suggestion already resolved' });
 
@@ -161,7 +166,8 @@ function approveWithEdits(req, res) {
   const { id } = req.params;
   const { data: editedData } = req.body;
 
-  const suggestion = db.prepare('SELECT * FROM ai_suggestions WHERE id = ?').get(id);
+  const clientId = getEffectiveClientId(req, db);
+  const suggestion = db.prepare('SELECT * FROM ai_suggestions WHERE id = ? AND client_id = ?').get(id, clientId);
   if (!suggestion) return res.status(404).json({ error: 'Suggestion not found' });
   if (suggestion.status !== 'pending') return res.status(400).json({ error: 'Suggestion already resolved' });
 
@@ -181,8 +187,9 @@ function approveWithEdits(req, res) {
 function dismiss(req, res) {
   const db = getDb();
   const { id } = req.params;
+  const clientId = getEffectiveClientId(req, db);
 
-  const suggestion = db.prepare('SELECT * FROM ai_suggestions WHERE id = ?').get(id);
+  const suggestion = db.prepare('SELECT * FROM ai_suggestions WHERE id = ? AND client_id = ?').get(id, clientId);
   if (!suggestion) return res.status(404).json({ error: 'Suggestion not found' });
   if (suggestion.status !== 'pending') return res.status(400).json({ error: 'Suggestion already resolved' });
 
@@ -196,11 +203,12 @@ function dismiss(req, res) {
 function bulkApprove(req, res) {
   const db = getDb();
   const { ids } = req.body;
+  const clientId = getEffectiveClientId(req, db);
   if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids array required' });
 
   const results = [];
   for (const id of ids) {
-    const suggestion = db.prepare('SELECT * FROM ai_suggestions WHERE id = ? AND status = ?').get(id, 'pending');
+    const suggestion = db.prepare('SELECT * FROM ai_suggestions WHERE id = ? AND client_id = ? AND status = ?').get(id, clientId, 'pending');
     if (!suggestion) continue;
 
     const data = JSON.parse(suggestion.data);
@@ -220,15 +228,16 @@ function bulkApprove(req, res) {
 function bulkDismiss(req, res) {
   const db = getDb();
   const { ids } = req.body;
+  const clientId = getEffectiveClientId(req, db);
   if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids array required' });
 
   const stmt = db.prepare(
-    "UPDATE ai_suggestions SET status = 'dismissed', resolved_by = ?, updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
+    "UPDATE ai_suggestions SET status = 'dismissed', resolved_by = ?, updated_at = datetime('now') WHERE id = ? AND client_id = ? AND status = 'pending'"
   );
 
   let count = 0;
   for (const id of ids) {
-    const result = stmt.run(req.user.id, id);
+    const result = stmt.run(req.user.id, id, clientId);
     count += result.changes;
   }
 
@@ -237,28 +246,39 @@ function bulkDismiss(req, res) {
 
 function findOrCreateCompany(db, companyName, data, userId) {
   if (!companyName) return null;
+  const clientId = getOwnerById(db, userId)?.client_id || db.prepare('SELECT client_id FROM users WHERE id = ?').get(userId)?.client_id || null;
   const findOrCreate = db.transaction(() => {
     // Case-insensitive dedup
-    const existing = db.prepare('SELECT id FROM companies WHERE LOWER(name) = LOWER(?)').get(companyName);
+    const existing = db.prepare('SELECT id FROM companies WHERE client_id = ? AND LOWER(name) = LOWER(?)').get(clientId, companyName);
     if (existing) return existing.id;
 
     const result = db.prepare(
-      "INSERT INTO companies (name, industry, website, phone, address, created_by, ai_generated, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))"
-    ).run(companyName, data.industry || '', data.website || '', data.phone || '', data.address || '', userId);
+      "INSERT INTO companies (name, industry, website, phone, address, created_by, client_id, ai_generated, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))"
+    ).run(companyName, data.industry || '', data.website || '', data.phone || '', data.address || '', userId, clientId);
     return result.lastInsertRowid;
   });
   return findOrCreate();
 }
 
+function getClientIdForAction(db, userId, emailId) {
+  if (emailId) {
+    const email = db.prepare('SELECT client_id FROM emails WHERE id = ?').get(emailId);
+    if (email?.client_id) return email.client_id;
+  }
+  const user = db.prepare('SELECT client_id FROM users WHERE id = ?').get(userId);
+  return user?.client_id || null;
+}
+
 function applySuggestion(db, type, data, userId, emailDate, emailId) {
   // Use email date for activity timestamps so timeline reflects when things actually happened
   const tsValue = emailDate || new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const clientId = getClientIdForAction(db, userId, emailId);
   switch (type) {
     case 'create_contact': {
       const createContact = db.transaction(() => {
         // Dedup by email
         if (data.email) {
-          const existing = db.prepare('SELECT id FROM contacts WHERE LOWER(email) = LOWER(?)').get(data.email);
+          const existing = db.prepare('SELECT id FROM contacts WHERE client_id = ? AND LOWER(email) = LOWER(?)').get(clientId, data.email);
           if (existing) return { type: 'contact', id: existing.id, deduplicated: true };
         }
         // Link to company if company_name provided
@@ -267,8 +287,8 @@ function applySuggestion(db, type, data, userId, emailDate, emailId) {
           companyId = findOrCreateCompany(db, data.company_name, {}, userId);
         }
         const result = db.prepare(
-          "INSERT INTO contacts (first_name, last_name, email, phone, job_title, company_id, owner_id, lead_source, ai_generated, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))"
-        ).run(data.first_name || '', data.last_name || '', data.email || '', data.phone || '', data.job_title || '', companyId, userId, data.lead_source || 'ai_email');
+          "INSERT INTO contacts (first_name, last_name, email, phone, job_title, company_id, owner_id, client_id, lead_source, ai_generated, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))"
+        ).run(data.first_name || '', data.last_name || '', data.email || '', data.phone || '', data.job_title || '', companyId, userId, clientId, data.lead_source || 'ai_email');
         return { type: 'contact', id: result.lastInsertRowid };
       });
       return createContact();
@@ -277,12 +297,12 @@ function applySuggestion(db, type, data, userId, emailDate, emailId) {
       const createCompany = db.transaction(() => {
         // Dedup by name (case-insensitive)
         if (data.name) {
-          const existing = db.prepare('SELECT id FROM companies WHERE LOWER(name) = LOWER(?)').get(data.name);
+          const existing = db.prepare('SELECT id FROM companies WHERE client_id = ? AND LOWER(name) = LOWER(?)').get(clientId, data.name);
           if (existing) return { type: 'company', id: existing.id, deduplicated: true };
         }
         const result = db.prepare(
-          "INSERT INTO companies (name, industry, website, phone, address, created_by, ai_generated, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))"
-        ).run(data.name || '', data.industry || '', data.website || '', data.phone || '', data.address || '', userId);
+          "INSERT INTO companies (name, industry, website, phone, address, created_by, client_id, ai_generated, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))"
+        ).run(data.name || '', data.industry || '', data.website || '', data.phone || '', data.address || '', userId, clientId);
         return { type: 'company', id: result.lastInsertRowid };
       });
       return createCompany();
@@ -292,7 +312,7 @@ function applySuggestion(db, type, data, userId, emailDate, emailId) {
       const createDeal = db.transaction(() => {
         // Dedup by title (case-insensitive)
         if (data.title) {
-          const existing = db.prepare('SELECT id FROM deals WHERE LOWER(title) = LOWER(?)').get(data.title);
+          const existing = db.prepare('SELECT id FROM deals WHERE client_id = ? AND LOWER(title) = LOWER(?)').get(clientId, data.title);
           if (existing) return { type: 'deal', id: existing.id, deduplicated: true };
         }
         // Link to company — resolve from company_name, or extract from title pattern "X <> CompanyName"
@@ -308,23 +328,23 @@ function applySuggestion(db, type, data, userId, emailDate, emailId) {
         // Find contact by email if provided
         let contactId = data.contact_id || null;
         if (!contactId && data.contact_email) {
-          const contact = db.prepare('SELECT id FROM contacts WHERE LOWER(email) = LOWER(?)').get(data.contact_email);
+          const contact = db.prepare('SELECT id FROM contacts WHERE client_id = ? AND LOWER(email) = LOWER(?)').get(clientId, data.contact_email);
           if (contact) contactId = contact.id;
         }
         // Resolve stage_name to stage_id
         let stageId = data.stage_id || null;
         if (!stageId && data.stage_name) {
-          const stage = db.prepare('SELECT id FROM deal_stages WHERE LOWER(name) = LOWER(?)').get(data.stage_name);
+          const stage = db.prepare('SELECT id FROM deal_stages WHERE client_id = ? AND LOWER(name) = LOWER(?)').get(clientId, data.stage_name);
           if (stage) stageId = stage.id;
         }
         if (!stageId) {
-          const firstStage = db.prepare('SELECT id FROM deal_stages ORDER BY display_order ASC LIMIT 1').get();
+          const firstStage = db.prepare('SELECT id FROM deal_stages WHERE client_id = ? ORDER BY display_order ASC LIMIT 1').get(clientId);
           stageId = firstStage?.id || 1;
         }
         // Resolve partner_id from partner_name if provided
         let partnerId = data.partner_id || null;
         if (!partnerId && data.partner_name) {
-          const partner = db.prepare('SELECT id FROM partners WHERE LOWER(name) = LOWER(?)').get(data.partner_name);
+          const partner = db.prepare('SELECT id FROM partners WHERE client_id = ? AND LOWER(name) = LOWER(?)').get(clientId, data.partner_name);
           if (partner) partnerId = partner.id;
         }
         const ownerId = resolveDealOwnerId(db, emailId, userId);
@@ -338,14 +358,14 @@ function applySuggestion(db, type, data, userId, emailDate, emailId) {
           }
         }
         const result = db.prepare(
-          "INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, lead_source, partner_id, ai_generated, notes, priority, created_at, updated_at, stage_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, datetime('now'), datetime('now'), ?)"
-        ).run(data.title || '', parseFloat(data.value) || 0, stageId, companyId, contactId, ownerId, data.lead_source || 'ai_email', partnerId, data.notes || '', priority, tsValue);
+          "INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, client_id, lead_source, partner_id, ai_generated, notes, priority, created_at, updated_at, stage_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, datetime('now'), datetime('now'), ?)"
+        ).run(data.title || '', parseFloat(data.value) || 0, stageId, companyId, contactId, ownerId, clientId, data.lead_source || 'ai_email', partnerId, data.notes || '', priority, tsValue);
 
         // Log deal creation activity
         const stageName = db.prepare('SELECT name FROM deal_stages WHERE id = ?').get(stageId)?.name || 'Unknown';
         db.prepare(
-          "INSERT INTO activities (type, subject, description, deal_id, user_id, ai_generated, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, 1, ?, ?)"
-        ).run('Deal created by AI', `Deal "${data.title}" created in stage ${stageName}${data.company_name ? ` for ${data.company_name}` : ''}`, result.lastInsertRowid, userId, tsValue, tsValue);
+          "INSERT INTO activities (type, subject, description, deal_id, user_id, client_id, ai_generated, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, ?, 1, ?, ?)"
+        ).run('Deal created by AI', `Deal "${data.title}" created in stage ${stageName}${data.company_name ? ` for ${data.company_name}` : ''}`, result.lastInsertRowid, userId, clientId, tsValue, tsValue);
 
         return { type: 'deal', id: result.lastInsertRowid };
       });
@@ -356,7 +376,7 @@ function applySuggestion(db, type, data, userId, emailDate, emailId) {
       let dealId = data.deal_id || null;
       let contactId = data.contact_id || null;
       if (!dealId && data.company_name) {
-        const company = db.prepare('SELECT id FROM companies WHERE LOWER(name) = LOWER(?)').get(data.company_name);
+        const company = db.prepare('SELECT id FROM companies WHERE client_id = ? AND LOWER(name) = LOWER(?)').get(clientId, data.company_name);
         if (company) {
           const deal = db.prepare('SELECT id FROM deals WHERE company_id = ? ORDER BY updated_at DESC LIMIT 1').get(company.id);
           if (deal) dealId = deal.id;
@@ -370,13 +390,13 @@ function applySuggestion(db, type, data, userId, emailDate, emailId) {
       if (!dealId && data.subject) {
         const match = data.subject.match(/Pazo\s*<>\s*(.+)/i);
         if (match) {
-          const deal = db.prepare('SELECT id FROM deals WHERE LOWER(title) = LOWER(?)').get(match[0].trim());
+          const deal = db.prepare('SELECT id FROM deals WHERE client_id = ? AND LOWER(title) = LOWER(?)').get(clientId, match[0].trim());
           if (deal) dealId = deal.id;
         }
       }
       const result = db.prepare(
-        "INSERT INTO activities (type, subject, description, deal_id, contact_id, user_id, ai_generated, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)"
-      ).run(data.type || 'email', data.subject || '', data.description || '', dealId, contactId, userId, tsValue, tsValue);
+        "INSERT INTO activities (type, subject, description, deal_id, contact_id, user_id, client_id, ai_generated, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)"
+      ).run(data.type || 'email', data.subject || '', data.description || '', dealId, contactId, userId, clientId, tsValue, tsValue);
       return { type: 'activity', id: result.lastInsertRowid };
     }
     case 'update_contact': {
@@ -400,13 +420,13 @@ function applySuggestion(db, type, data, userId, emailDate, emailId) {
       // Resolve deal_title to deal_id if needed
       let dealId = data.deal_id || null;
       if (!dealId && data.deal_title) {
-        const deal = db.prepare('SELECT id FROM deals WHERE LOWER(title) = LOWER(?)').get(data.deal_title);
+        const deal = db.prepare('SELECT id FROM deals WHERE client_id = ? AND LOWER(title) = LOWER(?)').get(clientId, data.deal_title);
         if (deal) dealId = deal.id;
       }
       // Resolve stage_name to stage_id if needed
       let stageId = data.stage_id || null;
       if (!stageId && data.stage_name) {
-        const stage = db.prepare('SELECT id FROM deal_stages WHERE LOWER(name) = LOWER(?)').get(data.stage_name);
+        const stage = db.prepare('SELECT id FROM deal_stages WHERE client_id = ? AND LOWER(name) = LOWER(?)').get(clientId, data.stage_name);
         if (stage) stageId = stage.id;
       }
       if (!dealId || !stageId) return { type: 'deal', id: null };
@@ -418,18 +438,18 @@ function applySuggestion(db, type, data, userId, emailDate, emailId) {
 
       // Log stage movement activity
       db.prepare(
-        "INSERT INTO activities (type, subject, description, deal_id, user_id, ai_generated, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, 1, ?, ?)"
-      ).run('Stage changed by AI', `Moved from ${oldStageName} to ${newStageName}`, dealId, userId, tsValue, tsValue);
+        "INSERT INTO activities (type, subject, description, deal_id, user_id, client_id, ai_generated, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, ?, 1, ?, ?)"
+      ).run('Stage changed by AI', `Moved from ${oldStageName} to ${newStageName}`, dealId, userId, clientId, tsValue, tsValue);
 
       return { type: 'deal', id: dealId };
     }
     case 'newsletter_detected': {
       const senderEmail = (data.sender_email || '').toLowerCase().trim();
       if (senderEmail) {
-        const existing = db.prepare('SELECT id FROM email_ignore_list WHERE LOWER(email_address) = ?').get(senderEmail);
+        const existing = db.prepare('SELECT id FROM email_ignore_list WHERE client_id = ? AND LOWER(email_address) = ?').get(clientId, senderEmail);
         if (!existing) {
           const reason = `Newsletter confirmed: ${data.newsletter_name || 'Unknown'}`;
-          db.prepare('INSERT INTO email_ignore_list (email_address, reason) VALUES (?, ?)').run(senderEmail, reason);
+          db.prepare('INSERT INTO email_ignore_list (client_id, email_address, reason) VALUES (?, ?, ?)').run(clientId, senderEmail, reason);
         }
       }
       return { type: 'ignore_list', id: null };

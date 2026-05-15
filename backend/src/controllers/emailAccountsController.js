@@ -1,4 +1,5 @@
 const { getDb } = require('../db/connection');
+const { getEffectiveClientId } = require('../utils/tenant');
 
 function getFrontendBaseUrl(req) {
   const configured = process.env.FRONTEND_BASE_URL;
@@ -32,6 +33,8 @@ async function handleCallback(req, res) {
     const profile = await getGmailProfile(tokens.access_token);
 
     const db = getDb();
+    const user = db.prepare('SELECT client_id FROM users WHERE id = ?').get(userId);
+    const clientId = user?.client_id || null;
     const existing = db.prepare('SELECT * FROM email_accounts WHERE email_address = ? AND user_id = ?').get(profile.email, userId);
 
     if (existing) {
@@ -40,8 +43,8 @@ async function handleCallback(req, res) {
       ).run(tokens.access_token, tokens.refresh_token || existing.refresh_token, tokens.expiry_date || null, existing.id);
     } else {
       db.prepare(
-        'INSERT INTO email_accounts (user_id, provider, email_address, access_token, refresh_token, token_expires_at) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(userId, 'gmail', profile.email, tokens.access_token, tokens.refresh_token || '', tokens.expiry_date || null);
+        'INSERT INTO email_accounts (user_id, client_id, provider, email_address, access_token, refresh_token, token_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(userId, clientId, 'gmail', profile.email, tokens.access_token, tokens.refresh_token || '', tokens.expiry_date || null);
     }
 
     const frontendBaseUrl = getFrontendBaseUrl(req);
@@ -55,16 +58,18 @@ async function handleCallback(req, res) {
 
 function getAll(req, res) {
   const db = getDb();
+  const clientId = getEffectiveClientId(req, db);
   const accounts = db.prepare(
-    'SELECT id, user_id, provider, email_address, last_sync_at, sync_enabled, created_at FROM email_accounts WHERE user_id = ?'
-  ).all(req.user.id);
+    'SELECT id, user_id, provider, email_address, last_sync_at, sync_enabled, created_at FROM email_accounts WHERE user_id = ? AND client_id = ?'
+  ).all(req.user.id, clientId);
   res.json(accounts);
 }
 
 function remove(req, res) {
   const db = getDb();
   const { id } = req.params;
-  const account = db.prepare('SELECT * FROM email_accounts WHERE id = ? AND user_id = ?').get(id, req.user.id);
+  const clientId = getEffectiveClientId(req, db);
+  const account = db.prepare('SELECT * FROM email_accounts WHERE id = ? AND user_id = ? AND client_id = ?').get(id, req.user.id, clientId);
   if (!account) return res.status(404).json({ error: 'Account not found' });
 
   db.prepare('DELETE FROM email_accounts WHERE id = ?').run(id);
@@ -83,7 +88,8 @@ async function runPipelineInBackground() {
 async function syncNow(req, res) {
   const db = getDb();
   const { id } = req.params;
-  const account = db.prepare('SELECT * FROM email_accounts WHERE id = ? AND user_id = ?').get(id, req.user.id);
+  const clientId = getEffectiveClientId(req, db);
+  const account = db.prepare('SELECT * FROM email_accounts WHERE id = ? AND user_id = ? AND client_id = ?').get(id, req.user.id, clientId);
   if (!account) return res.status(404).json({ error: 'Account not found' });
 
   try {
@@ -100,7 +106,8 @@ async function syncNow(req, res) {
 async function resync(req, res) {
   const db = getDb();
   const { id } = req.params;
-  const account = db.prepare('SELECT * FROM email_accounts WHERE id = ? AND user_id = ?').get(id, req.user.id);
+  const clientId = getEffectiveClientId(req, db);
+  const account = db.prepare('SELECT * FROM email_accounts WHERE id = ? AND user_id = ? AND client_id = ?').get(id, req.user.id, clientId);
   if (!account) return res.status(404).json({ error: 'Account not found' });
 
   try {

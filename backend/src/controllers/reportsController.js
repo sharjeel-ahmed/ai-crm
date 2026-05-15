@@ -1,5 +1,6 @@
 const { getDb } = require('../db/connection');
 const { syncDealLifecycleStates } = require('../services/deals/lifecycle');
+const { getClientFilter } = require('../utils/tenant');
 
 function formatSqlDate(date, endOfDay = false) {
   const year = date.getFullYear();
@@ -48,16 +49,37 @@ function getDateRange(req) {
 }
 
 function getScope(req, alias = 'd') {
+  const clientFilter = getClientFilter(req, alias);
+  const clauseParts = [clientFilter.clause];
+  const params = [...clientFilter.params];
   if (req.user.role === 'sales_rep') {
-    return { clause: `AND ${alias}.owner_id = ?`, params: [req.user.id] };
+    clauseParts.push(`AND ${alias}.owner_id = ?`);
+    params.push(req.user.id);
+    return { clause: clauseParts.join(' '), params };
   }
   if (req.query.my_deals === 'true') {
-    return { clause: `AND ${alias}.owner_id = ?`, params: [req.user.id] };
+    clauseParts.push(`AND ${alias}.owner_id = ?`);
+    params.push(req.user.id);
+    return { clause: clauseParts.join(' '), params };
   }
   if (req.query.owner_id) {
-    return { clause: `AND ${alias}.owner_id = ?`, params: [parseInt(req.query.owner_id)] };
+    clauseParts.push(`AND ${alias}.owner_id = ?`);
+    params.push(parseInt(req.query.owner_id));
+    return { clause: clauseParts.join(' '), params };
   }
-  return { clause: '', params: [] };
+  return { clause: clauseParts.join(' '), params };
+}
+
+function getScopedOwnerContext(req) {
+  if (req.user.role === 'sales_rep') {
+    return { isScoped: true, scopedUserId: req.user.id };
+  }
+
+  const scopedUserId = req.query.owner_id ? parseInt(req.query.owner_id, 10) : req.user.id;
+  return {
+    isScoped: req.query.my_deals === 'true' || Boolean(req.query.owner_id),
+    scopedUserId,
+  };
 }
 
 function getSummary(req, res) {
@@ -341,10 +363,10 @@ function attention(req, res) {
 function dashboard(req, res) {
   const db = getDb();
   syncDealLifecycleStates(db);
-  const isScoped = req.user.role === 'sales_rep' || req.query.my_deals === 'true' || req.query.owner_id;
-  const scopedUserId = req.query.owner_id ? parseInt(req.query.owner_id) : req.user.id;
-  const ownerClause = isScoped ? ' AND d.owner_id = ?' : '';
-  const ownerParams = isScoped ? [scopedUserId] : [];
+  const { isScoped, scopedUserId } = getScopedOwnerContext(req);
+  const clientScope = getClientFilter(req, 'd');
+  const ownerClause = `${clientScope.clause}${isScoped ? ' AND d.owner_id = ?' : ''}`;
+  const ownerParams = [...clientScope.params, ...(isScoped ? [scopedUserId] : [])];
   const activeDealFilter = `COALESCE(d.lifecycle_state, 'active') != 'closed'`;
   const sevenDaysAgo = formatSqlDate(new Date(Date.now() - (6 * 86400000)));
   const thirtyDaysAgo = formatSqlDate(new Date(Date.now() - (29 * 86400000)));
@@ -633,10 +655,10 @@ function dashboard(req, res) {
 function funnelDashboard(req, res) {
   const db = getDb();
   syncDealLifecycleStates(db);
-  const isScoped = req.user.role === 'sales_rep' || req.query.my_deals === 'true' || req.query.owner_id;
-  const scopedUserId = req.query.owner_id ? parseInt(req.query.owner_id) : req.user.id;
-  const ownerClause = isScoped ? ' AND d.owner_id = ?' : '';
-  const ownerParams = isScoped ? [scopedUserId] : [];
+  const { isScoped, scopedUserId } = getScopedOwnerContext(req);
+  const clientScope = getClientFilter(req, 'd');
+  const ownerClause = `${clientScope.clause}${isScoped ? ' AND d.owner_id = ?' : ''}`;
+  const ownerParams = [...clientScope.params, ...(isScoped ? [scopedUserId] : [])];
   const activeDealFilter = `COALESCE(d.lifecycle_state, 'active') != 'closed'`;
 
   // --- 1. Forecast by month (expected close dates) ---
@@ -859,13 +881,14 @@ function funnelDashboard(req, res) {
 function getTargets(req, res) {
   const db = getDb();
   const period = req.query.period || new Date().toISOString().slice(0, 7);
+  const targetScope = req.user.client_id ? 'WHERE t.period = ? AND u.client_id = ?' : 'WHERE t.period = ?';
   const targets = db.prepare(`
     SELECT t.*, u.name
     FROM targets t
     JOIN users u ON u.id = t.user_id
-    WHERE t.period = ?
+    ${targetScope}
     ORDER BY u.name
-  `).all(period);
+  `).all(...(req.user.client_id ? [period, req.user.client_id] : [period]));
   res.json(targets);
 }
 
@@ -875,6 +898,10 @@ function setTarget(req, res) {
     return res.status(400).json({ error: 'user_id, period, and target_value are required' });
   }
   const db = getDb();
+  if (req.user.client_id) {
+    const user = db.prepare('SELECT id FROM users WHERE id = ? AND client_id = ?').get(user_id, req.user.client_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+  }
   db.prepare(`
     INSERT INTO targets (user_id, period, target_value) VALUES (?, ?, ?)
     ON CONFLICT(user_id, period) DO UPDATE SET target_value = ?, updated_at = datetime('now')

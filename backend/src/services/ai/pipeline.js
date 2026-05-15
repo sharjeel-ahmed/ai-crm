@@ -51,7 +51,7 @@ function buildThreadQueues(emails) {
   const queues = new Map();
 
   for (const email of sortEmailsChronologically(emails)) {
-    const key = email.gmail_thread_id || `email-${email.id}`;
+    const key = `${email.client_id || 'global'}:${email.gmail_thread_id || `email-${email.id}`}`;
     if (!queues.has(key)) queues.set(key, []);
     queues.get(key).push(email);
   }
@@ -59,9 +59,15 @@ function buildThreadQueues(emails) {
   return [...queues.values()];
 }
 
-async function processOneEmail(email, aiSettings) {
+async function processOneEmail(email) {
   const db = getDb();
   try {
+    const aiSettings = db.prepare('SELECT * FROM ai_settings WHERE client_id = ? AND is_active = 1 LIMIT 1').get(email.client_id);
+    if (!aiSettings || (aiSettings.provider !== 'claude-cli' && !aiSettings.api_key)) {
+      db.prepare('UPDATE emails SET ai_error = ? WHERE id = ?').run('No active AI provider configured for client', email.id);
+      return { success: false, fatal: false, error: 'No active AI provider configured for client' };
+    }
+
     const result = await extractFromEmail(email, aiSettings.provider, aiSettings.api_key, aiSettings.model);
     const { sentiment, suggestions, prompt, rawResponse } = result;
 
@@ -85,18 +91,19 @@ async function processOneEmail(email, aiSettings) {
         const newsletterStatus = suggestion.confidence >= 0.85 ? 'auto_approved' : 'pending';
 
         if (newsletterStatus === 'auto_approved' && senderEmail) {
-          const existing = db.prepare('SELECT id FROM email_ignore_list WHERE LOWER(email_address) = ?').get(senderEmail);
+          const existing = db.prepare('SELECT id FROM email_ignore_list WHERE client_id = ? AND LOWER(email_address) = ?').get(email.client_id, senderEmail);
           if (!existing) {
             const reason = `Newsletter auto-detected: ${suggestion.data?.newsletter_name || 'Unknown'} (${Math.round(suggestion.confidence * 100)}% confidence)`;
-            db.prepare('INSERT INTO email_ignore_list (email_address, reason) VALUES (?, ?)').run(senderEmail, reason);
+            db.prepare('INSERT INTO email_ignore_list (client_id, email_address, reason) VALUES (?, ?, ?)').run(email.client_id, senderEmail, reason);
             console.log(`Auto-ignored newsletter sender: ${senderEmail}`);
           }
         }
 
         db.prepare(
-          'INSERT INTO ai_suggestions (email_id, type, data, confidence, reasoning, status) VALUES (?, ?, ?, ?, ?, ?)'
+          'INSERT INTO ai_suggestions (email_id, client_id, type, data, confidence, reasoning, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
         ).run(
           email.id,
+          email.client_id,
           suggestion.type,
           JSON.stringify(suggestion.data),
           suggestion.confidence,
@@ -107,9 +114,10 @@ async function processOneEmail(email, aiSettings) {
       }
 
       const result = db.prepare(
-        'INSERT INTO ai_suggestions (email_id, type, data, confidence, reasoning, status) VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO ai_suggestions (email_id, client_id, type, data, confidence, reasoning, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).run(
         email.id,
+        email.client_id,
         suggestion.type,
         JSON.stringify(suggestion.data),
         suggestion.confidence,
@@ -136,11 +144,6 @@ async function processOneEmail(email, aiSettings) {
 async function processUnprocessedEmails() {
   const db = getDb();
 
-  const aiSettings = db.prepare('SELECT * FROM ai_settings WHERE is_active = 1 LIMIT 1').get();
-  if (!aiSettings || (aiSettings.provider !== 'claude-cli' && !aiSettings.api_key)) {
-    return { processed: 0, reason: 'No active AI provider configured' };
-  }
-
   let totalProcessed = 0;
   let totalErrors = 0;
   const BATCH_SIZE = 5;
@@ -151,10 +154,9 @@ async function processUnprocessedEmails() {
     const allEmails = db.prepare('SELECT * FROM emails WHERE ai_processed = 0 LIMIT ?').all(CHUNK_SIZE);
     if (allEmails.length === 0) break;
 
-    // Filter out ignored email addresses
-    const ignoreList = db.prepare('SELECT LOWER(email_address) as email FROM email_ignore_list').all().map(r => r.email);
     const emails = [];
     for (const email of allEmails) {
+      const ignoreList = db.prepare('SELECT LOWER(email_address) as email FROM email_ignore_list WHERE client_id = ?').all(email.client_id).map(r => r.email);
       const from = normalizeEmailAddress(email.from_address);
       const toEmails = parseEmailArray(email.to_addresses);
 
@@ -187,7 +189,7 @@ async function processUnprocessedEmails() {
       if (batch.length === 0) break;
 
       batchNumber += 1;
-      const results = await Promise.all(batch.map(email => processOneEmail(email, aiSettings)));
+      const results = await Promise.all(batch.map(email => processOneEmail(email)));
 
       for (const r of results) {
         if (r.fatal) {

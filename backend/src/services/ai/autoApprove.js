@@ -6,15 +6,17 @@ function checkAutoApprove(suggestionId) {
   const suggestion = db.prepare('SELECT * FROM ai_suggestions WHERE id = ?').get(suggestionId);
   if (!suggestion || suggestion.status !== 'pending') return false;
 
-  const rule = db.prepare('SELECT * FROM auto_approve_rules WHERE suggestion_type = ? AND is_enabled = 1').get(suggestion.type);
+  const rule = db.prepare('SELECT * FROM auto_approve_rules WHERE client_id = ? AND suggestion_type = ? AND is_enabled = 1').get(suggestion.client_id, suggestion.type);
   if (!rule) return false;
 
   if (suggestion.confidence >= rule.confidence_threshold) {
     const data = JSON.parse(suggestion.data);
     // Get email date so activities reflect when the email was sent
-    const email = suggestion.email_id ? db.prepare('SELECT date FROM emails WHERE id = ?').get(suggestion.email_id) : null;
-    // Use user_id 1 (admin) as the system user for auto-approved actions
-    const entityResult = applySuggestion(db, suggestion.type, data, 1, email?.date, suggestion.email_id);
+    const email = suggestion.email_id ? db.prepare('SELECT date, client_id, email_account_id FROM emails WHERE id = ?').get(suggestion.email_id) : null;
+    const systemUser = email?.email_account_id
+      ? db.prepare('SELECT user_id FROM email_accounts WHERE id = ?').get(email.email_account_id)
+      : null;
+    const entityResult = applySuggestion(db, suggestion.type, data, systemUser?.user_id || 1, email?.date, suggestion.email_id);
 
     db.prepare(
       "UPDATE ai_suggestions SET status = 'auto_approved', created_entity_type = ?, created_entity_id = ?, updated_at = datetime('now') WHERE id = ?"

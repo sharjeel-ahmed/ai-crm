@@ -1,4 +1,5 @@
 const { getDb } = require('../db/connection');
+const { getEffectiveClientId } = require('../utils/tenant');
 
 function maskKey(key) {
   if (!key || key.length < 8) return '****';
@@ -7,7 +8,8 @@ function maskKey(key) {
 
 function get(req, res) {
   const db = getDb();
-  const settings = db.prepare('SELECT * FROM ai_settings ORDER BY id').all();
+  const clientId = getEffectiveClientId(req, db);
+  const settings = db.prepare('SELECT * FROM ai_settings WHERE client_id = ? ORDER BY id').all(clientId);
   const masked = settings.map(s => ({ ...s, api_key: maskKey(s.api_key) }));
   res.json(masked);
 }
@@ -15,7 +17,8 @@ function get(req, res) {
 function getPrompt(req, res) {
   const db = getDb();
   const { DEFAULT_PROMPT } = require('../services/ai/extractionPrompt');
-  const active = db.prepare('SELECT custom_prompt FROM ai_settings WHERE is_active = 1 LIMIT 1').get();
+  const clientId = getEffectiveClientId(req, db);
+  const active = db.prepare('SELECT custom_prompt FROM ai_settings WHERE client_id = ? AND is_active = 1 LIMIT 1').get(clientId);
   res.json({
     custom_prompt: active?.custom_prompt || '',
     default_prompt: DEFAULT_PROMPT,
@@ -25,7 +28,8 @@ function getPrompt(req, res) {
 function updatePrompt(req, res) {
   const db = getDb();
   const { custom_prompt } = req.body;
-  const active = db.prepare('SELECT id FROM ai_settings WHERE is_active = 1 LIMIT 1').get();
+  const clientId = getEffectiveClientId(req, db);
+  const active = db.prepare('SELECT id FROM ai_settings WHERE client_id = ? AND is_active = 1 LIMIT 1').get(clientId);
   if (!active) return res.status(400).json({ error: 'No active AI provider' });
 
   db.prepare("UPDATE ai_settings SET custom_prompt = ?, updated_at = datetime('now') WHERE id = ?")
@@ -36,10 +40,11 @@ function updatePrompt(req, res) {
 function update(req, res) {
   const db = getDb();
   const { provider, api_key, model, is_active } = req.body;
+  const clientId = getEffectiveClientId(req, db);
 
   if (!provider) return res.status(400).json({ error: 'Provider is required' });
 
-  const existing = db.prepare('SELECT * FROM ai_settings WHERE provider = ?').get(provider);
+  const existing = db.prepare('SELECT * FROM ai_settings WHERE provider = ? AND client_id = ?').get(provider, clientId);
 
   if (existing) {
     const updates = [];
@@ -55,7 +60,7 @@ function update(req, res) {
     if (is_active !== undefined) {
       // If activating this provider, deactivate others
       if (is_active) {
-        db.prepare('UPDATE ai_settings SET is_active = 0').run();
+        db.prepare('UPDATE ai_settings SET is_active = 0 WHERE client_id = ?').run(clientId);
       }
       updates.push('is_active = ?');
       params.push(is_active ? 1 : 0);
@@ -68,23 +73,24 @@ function update(req, res) {
   } else {
     // If activating, deactivate others first
     if (is_active) {
-      db.prepare('UPDATE ai_settings SET is_active = 0').run();
+      db.prepare('UPDATE ai_settings SET is_active = 0 WHERE client_id = ?').run(clientId);
     }
-    db.prepare('INSERT INTO ai_settings (provider, api_key, model, is_active) VALUES (?, ?, ?, ?)').run(
-      provider, api_key || '', model || '', is_active ? 1 : 0
+    db.prepare('INSERT INTO ai_settings (client_id, provider, api_key, model, is_active) VALUES (?, ?, ?, ?, ?)').run(
+      clientId, provider, api_key || '', model || '', is_active ? 1 : 0
     );
   }
 
-  const updated = db.prepare('SELECT * FROM ai_settings WHERE provider = ?').get(provider);
+  const updated = db.prepare('SELECT * FROM ai_settings WHERE provider = ? AND client_id = ?').get(provider, clientId);
   res.json({ ...updated, api_key: maskKey(updated.api_key) });
 }
 
 async function testConnection(req, res) {
   const db = getDb();
   const { provider } = req.body;
+  const clientId = getEffectiveClientId(req, db);
   if (!provider) return res.status(400).json({ error: 'Provider is required' });
 
-  const settings = db.prepare('SELECT * FROM ai_settings WHERE provider = ?').get(provider);
+  const settings = db.prepare('SELECT * FROM ai_settings WHERE provider = ? AND client_id = ?').get(provider, clientId);
   if (!settings) {
     return res.status(400).json({ error: 'Provider not configured' });
   }

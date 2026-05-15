@@ -1,8 +1,10 @@
 const { getDb } = require('../db/connection');
+const { getEffectiveClientId } = require('../utils/tenant');
 
 function getAll(req, res) {
   const db = getDb();
-  const stages = db.prepare('SELECT * FROM deal_stages ORDER BY display_order').all();
+  const clientId = getEffectiveClientId(req, db);
+  const stages = db.prepare('SELECT * FROM deal_stages WHERE client_id = ? ORDER BY display_order').all(clientId);
   res.json(stages);
 }
 
@@ -11,9 +13,10 @@ function create(req, res) {
   if (!name) return res.status(400).json({ error: 'Stage name required' });
 
   const db = getDb();
-  const maxOrder = db.prepare('SELECT COALESCE(MAX(display_order), 0) + 1 as next FROM deal_stages').get();
-  const result = db.prepare('INSERT INTO deal_stages (name, display_order, is_closed) VALUES (?, ?, ?)')
-    .run(name, display_order || maxOrder.next, is_closed ? 1 : 0);
+  const clientId = getEffectiveClientId(req, db);
+  const maxOrder = db.prepare('SELECT COALESCE(MAX(display_order), 0) + 1 as next FROM deal_stages WHERE client_id = ?').get(clientId);
+  const result = db.prepare('INSERT INTO deal_stages (client_id, name, display_order, is_closed) VALUES (?, ?, ?, ?)')
+    .run(clientId, name, display_order || maxOrder.next, is_closed ? 1 : 0);
   const stage = db.prepare('SELECT * FROM deal_stages WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(stage);
 }
@@ -21,7 +24,8 @@ function create(req, res) {
 function update(req, res) {
   const { name, display_order, is_closed } = req.body;
   const db = getDb();
-  const stage = db.prepare('SELECT * FROM deal_stages WHERE id = ?').get(req.params.id);
+  const clientId = getEffectiveClientId(req, db);
+  const stage = db.prepare('SELECT * FROM deal_stages WHERE id = ? AND client_id = ?').get(req.params.id, clientId);
   if (!stage) return res.status(404).json({ error: 'Stage not found' });
 
   db.prepare('UPDATE deal_stages SET name = ?, display_order = ?, is_closed = ? WHERE id = ?')
@@ -32,11 +36,12 @@ function update(req, res) {
 
 function remove(req, res) {
   const db = getDb();
-  const dealsInStage = db.prepare('SELECT COUNT(*) as count FROM deals WHERE stage_id = ?').get(req.params.id);
+  const clientId = getEffectiveClientId(req, db);
+  const dealsInStage = db.prepare('SELECT COUNT(*) as count FROM deals WHERE stage_id = ? AND client_id = ?').get(req.params.id, clientId);
   if (dealsInStage.count > 0) {
     return res.status(400).json({ error: 'Cannot delete stage with existing deals' });
   }
-  const result = db.prepare('DELETE FROM deal_stages WHERE id = ?').run(req.params.id);
+  const result = db.prepare('DELETE FROM deal_stages WHERE id = ? AND client_id = ?').run(req.params.id, clientId);
   if (result.changes === 0) return res.status(404).json({ error: 'Stage not found' });
   res.json({ message: 'Stage deleted' });
 }

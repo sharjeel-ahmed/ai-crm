@@ -1,24 +1,28 @@
 const { getDb } = require('../db/connection');
+const { getClientFilter, getEffectiveClientId } = require('../utils/tenant');
 
 function getAll(req, res) {
   const db = getDb();
+  const filter = getClientFilter(req, 'p');
   const partners = db.prepare(`
     SELECT p.*, u.name as created_by_name
     FROM partners p
     LEFT JOIN users u ON p.created_by = u.id
+    WHERE 1=1 ${filter.clause}
     ORDER BY p.name
-  `).all();
+  `).all(...filter.params);
   res.json(partners);
 }
 
 function getById(req, res) {
   const db = getDb();
+  const filter = getClientFilter(req, 'p');
   const partner = db.prepare(`
     SELECT p.*, u.name as created_by_name
     FROM partners p
     LEFT JOIN users u ON p.created_by = u.id
-    WHERE p.id = ?
-  `).get(req.params.id);
+    WHERE p.id = ?${filter.clause}
+  `).get(req.params.id, ...filter.params);
   if (!partner) return res.status(404).json({ error: 'Partner not found' });
 
   const contacts = db.prepare(`
@@ -49,6 +53,7 @@ function create(req, res) {
   const db = getDb();
   const result = db.prepare('INSERT INTO partners (name, type, contact_name, email, phone, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(name, type, contact_name || null, email || null, phone || null, notes || null, req.user.id);
+  db.prepare('UPDATE partners SET client_id = ? WHERE id = ?').run(getEffectiveClientId(req, db), result.lastInsertRowid);
   const partner = db.prepare('SELECT * FROM partners WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(partner);
 }
@@ -56,7 +61,8 @@ function create(req, res) {
 function update(req, res) {
   const { name, type, contact_name, email, phone, notes } = req.body;
   const db = getDb();
-  const partner = db.prepare('SELECT * FROM partners WHERE id = ?').get(req.params.id);
+  const filter = getClientFilter(req);
+  const partner = db.prepare(`SELECT * FROM partners WHERE id = ?${filter.clause}`).get(req.params.id, ...filter.params);
   if (!partner) return res.status(404).json({ error: 'Partner not found' });
 
   db.prepare(`UPDATE partners SET name = ?, type = ?, contact_name = ?, email = ?, phone = ?, notes = ?, updated_at = datetime('now') WHERE id = ?`)
@@ -75,7 +81,8 @@ function update(req, res) {
 
 function remove(req, res) {
   const db = getDb();
-  const result = db.prepare('DELETE FROM partners WHERE id = ?').run(req.params.id);
+  const filter = getClientFilter(req);
+  const result = db.prepare(`DELETE FROM partners WHERE id = ?${filter.clause}`).run(req.params.id, ...filter.params);
   if (result.changes === 0) return res.status(404).json({ error: 'Partner not found' });
   res.json({ message: 'Partner deleted' });
 }

@@ -6,5 +6,8 @@
     "build": "cd frontend && npm install --include=dev && npm run build",
     "start": "cd backend && node src/index.js",
     "install:all": "cd backend && npm install && cd ../frontend && npm install --include=dev"
+  },
+  "dependencies": {
+    "@openai/codex": "^0.125.0"
   }
 }

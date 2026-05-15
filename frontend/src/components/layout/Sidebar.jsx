@@ -3,25 +3,27 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, Kanban, List, Users, Building2, Handshake,
   CalendarCheck, BarChart3, Settings, LogOut, Sparkles, ScrollText,
-  PanelLeftClose, PanelLeftOpen, UserRound, Filter
+  PanelLeftClose, PanelLeftOpen, UserRound, Filter, ShieldCheck, Database
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
 
 const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/funnel', icon: Filter, label: 'Funnel' },
-  { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
-  { to: '/deals', icon: List, label: 'Deals' },
-  { to: '/contacts', icon: Users, label: 'Contacts' },
-  { to: '/companies', icon: Building2, label: 'Companies' },
-  { to: '/partners', icon: Handshake, label: 'Partners' },
-  { to: '/activities', icon: CalendarCheck, label: 'Activities' },
-  { to: '/ai-inbox', icon: Sparkles, label: 'AI Inbox', roles: ['admin'] },
-  { to: '/ai-logs', icon: ScrollText, label: 'AI Logs', roles: ['admin'] },
-  { to: '/reports', icon: BarChart3, label: 'Reports' },
-  { to: '/settings', icon: Settings, label: 'Settings', roles: ['admin'] },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', tenantOnly: true },
+  { to: '/funnel', icon: Filter, label: 'Funnel', tenantOnly: true },
+  { to: '/pipeline', icon: Kanban, label: 'Pipeline', tenantOnly: true },
+  { to: '/deals', icon: List, label: 'Deals', tenantOnly: true },
+  { to: '/contacts', icon: Users, label: 'Contacts', tenantOnly: true },
+  { to: '/companies', icon: Building2, label: 'Companies', tenantOnly: true },
+  { to: '/partners', icon: Handshake, label: 'Partners', tenantOnly: true },
+  { to: '/activities', icon: CalendarCheck, label: 'Activities', tenantOnly: true },
+  { to: '/ai-inbox', icon: Sparkles, label: 'AI Inbox', roles: ['admin'], tenantOnly: true },
+  { to: '/ai-logs', icon: ScrollText, label: 'AI Logs', roles: ['admin'], tenantOnly: true },
+  { to: '/saas-admin', icon: ShieldCheck, label: 'SaaS Admin', roles: ['admin'], globalAdminOnly: true },
+  { to: '/database-viewer', icon: Database, label: 'Database Viewer', roles: ['admin'], globalAdminOnly: true },
+  { to: '/reports', icon: BarChart3, label: 'Reports', tenantOnly: true },
+  { to: '/settings', icon: Settings, label: 'Settings', roles: ['admin'], tenantOnly: true },
 ];
 
 export default function Sidebar() {
@@ -46,7 +48,13 @@ export default function Sidebar() {
       </div>
       <nav className="flex-1 px-2 py-4 space-y-1">
         {navItems
-          .filter((item) => !item.roles || item.roles.includes(user?.role))
+          .filter((item) => {
+            if (item.roles && !item.roles.includes(user?.role)) return false;
+            const isGlobalAdmin = user?.role === 'admin' && !user?.client_id;
+            if (item.globalAdminOnly && !isGlobalAdmin) return false;
+            if (item.tenantOnly && isGlobalAdmin) return false;
+            return true;
+          })
           .map((item) => (
             <NavLink
               key={item.to}

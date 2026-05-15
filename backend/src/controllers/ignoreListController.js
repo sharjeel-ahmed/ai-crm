@@ -1,4 +1,5 @@
 const { getDb } = require('../db/connection');
+const { getEffectiveClientId } = require('../utils/tenant');
 
 function normalizeEmailAddress(value) {
   if (!value) return null;
@@ -24,7 +25,8 @@ function parseEmailArray(value) {
 
 function getAll(req, res) {
   const db = getDb();
-  const list = db.prepare('SELECT * FROM email_ignore_list ORDER BY created_at DESC').all();
+  const clientId = getEffectiveClientId(req, db);
+  const list = db.prepare('SELECT * FROM email_ignore_list WHERE client_id = ? ORDER BY created_at DESC').all(clientId);
   res.json(list);
 }
 
@@ -33,14 +35,15 @@ function add(req, res) {
   if (!email_address) return res.status(400).json({ error: 'Email address required' });
 
   const db = getDb();
+  const clientId = getEffectiveClientId(req, db);
   const normalized = normalizeEmailAddress(email_address);
   if (!normalized) return res.status(400).json({ error: 'Email address required' });
 
-  const existing = db.prepare('SELECT id FROM email_ignore_list WHERE LOWER(email_address) = ?').get(normalized);
+  const existing = db.prepare('SELECT id FROM email_ignore_list WHERE client_id = ? AND LOWER(email_address) = ?').get(clientId, normalized);
   if (existing) return res.status(400).json({ error: 'Email already in ignore list' });
 
-  const result = db.prepare('INSERT INTO email_ignore_list (email_address, reason) VALUES (?, ?)').run(normalized, reason || null);
-  const unprocessedEmails = db.prepare('SELECT id, from_address, to_addresses FROM emails WHERE ai_processed = 0').all();
+  const result = db.prepare('INSERT INTO email_ignore_list (client_id, email_address, reason) VALUES (?, ?, ?)').run(clientId, normalized, reason || null);
+  const unprocessedEmails = db.prepare('SELECT id, from_address, to_addresses FROM emails WHERE client_id = ? AND ai_processed = 0').all(clientId);
   const skipStmt = db.prepare('UPDATE emails SET ai_processed = 1 WHERE id = ?');
 
   for (const email of unprocessedEmails) {
@@ -57,7 +60,8 @@ function add(req, res) {
 
 function remove(req, res) {
   const db = getDb();
-  const result = db.prepare('DELETE FROM email_ignore_list WHERE id = ?').run(req.params.id);
+  const clientId = getEffectiveClientId(req, db);
+  const result = db.prepare('DELETE FROM email_ignore_list WHERE id = ? AND client_id = ?').run(req.params.id, clientId);
   if (result.changes === 0) return res.status(404).json({ error: 'Entry not found' });
   res.json({ message: 'Removed from ignore list' });
 }

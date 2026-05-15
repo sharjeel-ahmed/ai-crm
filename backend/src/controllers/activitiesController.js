@@ -1,10 +1,29 @@
 const { getDb } = require('../db/connection');
+const { getClientFilter, getEffectiveClientId } = require('../utils/tenant');
+
+function getScopedActivity(db, req, id) {
+  let query = 'SELECT * FROM activities WHERE id = ?';
+  const params = [id];
+  const clientFilter = getClientFilter(req);
+  query += clientFilter.clause;
+  params.push(...clientFilter.params);
+
+  if (req.user.role === 'sales_rep') {
+    query += ' AND user_id = ?';
+    params.push(req.user.id);
+  }
+
+  return db.prepare(query).get(...params);
+}
 
 function getAll(req, res) {
   const db = getDb();
   const { deal_id, contact_id, type } = req.query;
   let where = '1=1';
   const params = [];
+  const clientFilter = getClientFilter(req, 'a');
+  where += clientFilter.clause;
+  params.push(...clientFilter.params);
 
   if (deal_id) { where += ' AND a.deal_id = ?'; params.push(deal_id); }
   if (contact_id) { where += ' AND a.contact_id = ?'; params.push(contact_id); }
@@ -30,6 +49,9 @@ function getAll(req, res) {
 
 function getById(req, res) {
   const db = getDb();
+  const scopedActivity = getScopedActivity(db, req, req.params.id);
+  if (!scopedActivity) return res.status(404).json({ error: 'Activity not found' });
+
   const activity = db.prepare(`
     SELECT a.*, u.name as user_name, d.title as deal_title,
       ct.first_name || ' ' || ct.last_name as contact_name
@@ -38,8 +60,7 @@ function getById(req, res) {
     LEFT JOIN deals d ON a.deal_id = d.id
     LEFT JOIN contacts ct ON a.contact_id = ct.id
     WHERE a.id = ?
-  `).get(req.params.id);
-  if (!activity) return res.status(404).json({ error: 'Activity not found' });
+  `).get(scopedActivity.id);
   res.json(activity);
 }
 
@@ -50,6 +71,7 @@ function create(req, res) {
   const db = getDb();
   const result = db.prepare('INSERT INTO activities (type, subject, description, due_date, deal_id, contact_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(type, subject, description || null, due_date || null, deal_id || null, contact_id || null, req.user.id);
+  db.prepare('UPDATE activities SET client_id = ? WHERE id = ?').run(getEffectiveClientId(req, db), result.lastInsertRowid);
   const activity = db.prepare(`
     SELECT a.*, u.name as user_name
     FROM activities a LEFT JOIN users u ON a.user_id = u.id WHERE a.id = ?
@@ -60,7 +82,7 @@ function create(req, res) {
 function update(req, res) {
   const { type, subject, description, due_date, is_completed, deal_id, contact_id } = req.body;
   const db = getDb();
-  const activity = db.prepare('SELECT * FROM activities WHERE id = ?').get(req.params.id);
+  const activity = getScopedActivity(db, req, req.params.id);
   if (!activity) return res.status(404).json({ error: 'Activity not found' });
 
   db.prepare(`UPDATE activities SET type = ?, subject = ?, description = ?, due_date = ?, is_completed = ?, deal_id = ?, contact_id = ?, updated_at = datetime('now') WHERE id = ?`)
@@ -79,8 +101,10 @@ function update(req, res) {
 
 function remove(req, res) {
   const db = getDb();
-  const result = db.prepare('DELETE FROM activities WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Activity not found' });
+  const activity = getScopedActivity(db, req, req.params.id);
+  if (!activity) return res.status(404).json({ error: 'Activity not found' });
+
+  db.prepare('DELETE FROM activities WHERE id = ?').run(req.params.id);
   res.json({ message: 'Activity deleted' });
 }
 

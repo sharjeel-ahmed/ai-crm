@@ -22,6 +22,8 @@ import ProfilePage from './pages/ProfilePage';
 import ClosedDealsPage from './pages/ClosedDealsPage';
 import FunnelDashboardPage from './pages/FunnelDashboardPage';
 import MarketingPage from './pages/MarketingPage';
+import SaasAdminPage from './pages/SaasAdminPage';
+import DatabaseViewerPage from './pages/DatabaseViewerPage';
 
 export default function App() {
   return (
@@ -48,6 +50,8 @@ export default function App() {
             <Route path="profile" element={<ProfilePage />} />
             <Route path="ai-inbox" element={<ProtectedRoute roles={['admin']}><AIInboxPage /></ProtectedRoute>} />
             <Route path="ai-logs" element={<ProtectedRoute roles={['admin']}><AILogsPage /></ProtectedRoute>} />
+            <Route path="saas-admin" element={<ProtectedRoute roles={['admin']} globalAdminOnly><SaasAdminPage /></ProtectedRoute>} />
+            <Route path="database-viewer" element={<ProtectedRoute roles={['admin']} globalAdminOnly><DatabaseViewerPage /></ProtectedRoute>} />
             <Route path="settings" element={<ProtectedRoute roles={['admin']}><SettingsPage /></ProtectedRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

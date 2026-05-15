@@ -144,9 +144,9 @@ async function syncEmails(account) {
         const isInbound = !fromAddress.toLowerCase().includes(account.email_address.toLowerCase()) ? 1 : 0;
 
         db.prepare(
-          'INSERT INTO emails (email_account_id, gmail_message_id, gmail_thread_id, subject, from_address, from_name, to_addresses, body_text, date, is_inbound) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          'INSERT INTO emails (email_account_id, client_id, gmail_message_id, gmail_thread_id, subject, from_address, from_name, to_addresses, body_text, date, is_inbound) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         ).run(
-          account.id, msg.id, msg.threadId, subject, fromAddress, fromName,
+          account.id, account.client_id, msg.id, msg.threadId, subject, fromAddress, fromName,
           JSON.stringify(to.split(',').map(s => s.trim())),
           bodyText, date, isInbound
         );

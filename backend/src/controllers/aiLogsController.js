@@ -1,8 +1,10 @@
 const { getDb } = require('../db/connection');
+const { getEffectiveClientId } = require('../utils/tenant');
 
 function getLogs(req, res) {
   const db = getDb();
   const { limit = 50, offset = 0 } = req.query;
+  const clientId = getEffectiveClientId(req, db);
 
   const allEmails = db.prepare(`
     SELECT e.id, e.subject, e.from_address, e.from_name, e.to_addresses, e.date, e.is_inbound, e.ai_processed,
@@ -10,7 +12,8 @@ function getLogs(req, res) {
            e.created_at as synced_at, ea.email_address as account_email
     FROM emails e
     JOIN email_accounts ea ON e.email_account_id = ea.id
-  `).all();
+    WHERE e.client_id = ?
+  `).all(clientId);
 
   const total = allEmails.length;
 
@@ -54,8 +57,9 @@ function getLogs(req, res) {
 function deleteLog(req, res) {
   const db = getDb();
   const { id } = req.params;
+  const clientId = getEffectiveClientId(req, db);
 
-  const email = db.prepare('SELECT id, email_account_id, date FROM emails WHERE id = ?').get(parseInt(id));
+  const email = db.prepare('SELECT id, email_account_id, date FROM emails WHERE id = ? AND client_id = ?').get(parseInt(id), clientId);
   if (!email) return res.status(404).json({ error: 'Email log not found' });
 
   // Delete suggestions linked to this email, then the email itself
@@ -80,14 +84,15 @@ function deleteLog(req, res) {
 function deleteFromHere(req, res) {
   const db = getDb();
   const { id } = req.params;
+  const clientId = getEffectiveClientId(req, db);
 
-  const email = db.prepare('SELECT id, email_account_id, date FROM emails WHERE id = ?').get(parseInt(id));
+  const email = db.prepare('SELECT id, email_account_id, date FROM emails WHERE id = ? AND client_id = ?').get(parseInt(id), clientId);
   if (!email) return res.status(404).json({ error: 'Email log not found' });
 
   // Delete this email and all newer emails (by date) for the same account
   const toDelete = db.prepare(
-    'SELECT id FROM emails WHERE email_account_id = ? AND date >= ?'
-  ).all(email.email_account_id, email.date);
+    'SELECT id FROM emails WHERE email_account_id = ? AND client_id = ? AND date >= ?'
+  ).all(email.email_account_id, clientId, email.date);
 
   const ids = toDelete.map(e => e.id);
   if (ids.length > 0) {

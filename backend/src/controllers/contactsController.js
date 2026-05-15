@@ -1,4 +1,5 @@
 const { getDb } = require('../db/connection');
+const { getClientFilter, getEffectiveClientId } = require('../utils/tenant');
 
 function scopeQuery(req) {
   if (req.user.role === 'sales_rep') {
@@ -7,31 +8,49 @@ function scopeQuery(req) {
   return { where: '', params: [] };
 }
 
+function getScopedContact(db, req, id) {
+  let query = 'SELECT * FROM contacts WHERE id = ?';
+  const params = [id];
+  const clientFilter = getClientFilter(req);
+  query += clientFilter.clause;
+  params.push(...clientFilter.params);
+
+  if (req.user.role === 'sales_rep') {
+    query += ' AND owner_id = ?';
+    params.push(req.user.id);
+  }
+
+  return db.prepare(query).get(...params);
+}
+
 function getAll(req, res) {
   const db = getDb();
   const scope = scopeQuery(req);
+  const clientFilter = getClientFilter(req, 'ct');
   const contacts = db.prepare(`
     SELECT ct.*, c.name as company_name, u.name as owner_name, p.name as partner_name
     FROM contacts ct
     LEFT JOIN companies c ON ct.company_id = c.id
     LEFT JOIN users u ON ct.owner_id = u.id
     LEFT JOIN partners p ON ct.partner_id = p.id
-    WHERE 1=1 ${scope.where}
+    WHERE 1=1 ${clientFilter.clause} ${scope.where}
     ORDER BY ct.last_name, ct.first_name
-  `).all(...scope.params);
+  `).all(...clientFilter.params, ...scope.params);
   res.json(contacts);
 }
 
 function getById(req, res) {
   const db = getDb();
+  const scopedContact = getScopedContact(db, req, req.params.id);
+  if (!scopedContact) return res.status(404).json({ error: 'Contact not found' });
+
   const contact = db.prepare(`
     SELECT ct.*, c.name as company_name, u.name as owner_name
     FROM contacts ct
     LEFT JOIN companies c ON ct.company_id = c.id
     LEFT JOIN users u ON ct.owner_id = u.id
     WHERE ct.id = ?
-  `).get(req.params.id);
-  if (!contact) return res.status(404).json({ error: 'Contact not found' });
+  `).get(scopedContact.id);
   res.json(contact);
 }
 
@@ -42,6 +61,7 @@ function create(req, res) {
   const db = getDb();
   const result = db.prepare('INSERT INTO contacts (first_name, last_name, email, phone, job_title, company_id, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(first_name, last_name, email || null, phone || null, job_title || null, company_id || null, req.user.id);
+  db.prepare('UPDATE contacts SET client_id = ? WHERE id = ?').run(getEffectiveClientId(req, db), result.lastInsertRowid);
   const contact = db.prepare(`
     SELECT ct.*, c.name as company_name
     FROM contacts ct
@@ -54,7 +74,7 @@ function create(req, res) {
 function update(req, res) {
   const { first_name, last_name, email, phone, job_title, company_id, owner_id, partner_id } = req.body;
   const db = getDb();
-  const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(req.params.id);
+  const contact = getScopedContact(db, req, req.params.id);
   if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
   db.prepare(`UPDATE contacts SET first_name = ?, last_name = ?, email = ?, phone = ?, job_title = ?, company_id = ?, owner_id = ?, partner_id = ?, updated_at = datetime('now') WHERE id = ?`)
@@ -77,8 +97,10 @@ function update(req, res) {
 
 function remove(req, res) {
   const db = getDb();
-  const result = db.prepare('DELETE FROM contacts WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Contact not found' });
+  const contact = getScopedContact(db, req, req.params.id);
+  if (!contact) return res.status(404).json({ error: 'Contact not found' });
+
+  db.prepare('DELETE FROM contacts WHERE id = ?').run(req.params.id);
   res.json({ message: 'Contact deleted' });
 }
 
