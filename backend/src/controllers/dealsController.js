@@ -319,7 +319,7 @@ function create(req, res) {
 }
 
 function update(req, res) {
-  const { title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id, priority } = req.body;
+  const { title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id, priority, sentiment } = req.body;
   const db = getDb();
   const deal = getScopedDeal(db, req, req.params.id);
   if (!deal) return res.status(404).json({ error: 'Deal not found' });
@@ -332,20 +332,28 @@ function update(req, res) {
   const newStageId = stage_id || deal.stage_id;
   const stageChanged = newStageId !== deal.stage_id;
   const resolvedPriority = priority !== undefined ? priority : deal.priority;
-  db.prepare(`UPDATE deals SET title = ?, value = ?, stage_id = ?, company_id = ?, contact_id = ?, owner_id = ?, expected_close = ?, notes = ?, lead_source = ?, partner_id = ?, priority = ?, updated_at = datetime('now')${stageChanged ? ", stage_changed_at = datetime('now')" : ''} WHERE id = ?`)
-    .run(
-      title || deal.title, value !== undefined ? value : deal.value,
-      newStageId,
-      company_id !== undefined ? company_id : deal.company_id,
-      contact_id !== undefined ? contact_id : deal.contact_id,
-      ownerResolution.ownerId,
-      expected_close !== undefined ? expected_close : deal.expected_close,
-      notes !== undefined ? notes : deal.notes,
-      lead_source !== undefined ? lead_source : deal.lead_source,
-      partner_id !== undefined ? partner_id : deal.partner_id,
-      resolvedPriority,
-      req.params.id
-    );
+  const validSentiment = ['positive', 'negative', 'neutral'].includes(sentiment) ? sentiment : null;
+  const sentimentClause = validSentiment ? ', sentiment = ?, sentiment_manual = 1, sentiment_updated_at = datetime(\'now\')' : '';
+  const params = [
+    title || deal.title,
+    value !== undefined ? value : deal.value,
+    newStageId,
+    company_id !== undefined ? company_id : deal.company_id,
+    contact_id !== undefined ? contact_id : deal.contact_id,
+    ownerResolution.ownerId,
+    expected_close !== undefined ? expected_close : deal.expected_close,
+    notes !== undefined ? notes : deal.notes,
+    lead_source !== undefined ? lead_source : deal.lead_source,
+    partner_id !== undefined ? partner_id : deal.partner_id,
+    resolvedPriority,
+  ];
+  if (validSentiment) {
+    params.push(validSentiment);
+  }
+  params.push(req.params.id);
+
+  db.prepare(`UPDATE deals SET title = ?, value = ?, stage_id = ?, company_id = ?, contact_id = ?, owner_id = ?, expected_close = ?, notes = ?, lead_source = ?, partner_id = ?, priority = ?${sentimentClause}, updated_at = datetime('now')${stageChanged ? ", stage_changed_at = datetime('now')" : ''} WHERE id = ?`)
+    .run(...params);
   const updated = db.prepare(`
     SELECT d.*, ds.name as stage_name, c.name as company_name,
       ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
@@ -357,6 +365,38 @@ function update(req, res) {
     LEFT JOIN partners p ON d.partner_id = p.id WHERE d.id = ?
   `).get(req.params.id);
   res.json(refreshDealSentiment(db, updated));
+}
+
+function updateSentiment(req, res) {
+  const { sentiment } = req.body;
+  if (!['positive', 'negative', 'neutral'].includes(sentiment)) {
+    return res.status(400).json({ error: 'sentiment must be positive, negative, or neutral' });
+  }
+
+  const db = getDb();
+  const deal = getScopedDeal(db, req, req.params.id);
+  if (!deal) return res.status(404).json({ error: 'Deal not found' });
+
+  db.prepare(`
+    UPDATE deals
+    SET sentiment = ?, sentiment_manual = 1, sentiment_updated_at = datetime('now'), updated_at = datetime('now')
+    WHERE id = ?
+  `).run(sentiment, req.params.id);
+
+  const updated = db.prepare(`
+    SELECT d.*, ds.name as stage_name, c.name as company_name,
+      ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
+      p.name as partner_name
+    FROM deals d
+    LEFT JOIN deal_stages ds ON d.stage_id = ds.id
+    LEFT JOIN companies c ON d.company_id = c.id
+    LEFT JOIN contacts ct ON d.contact_id = ct.id
+    LEFT JOIN users u ON d.owner_id = u.id
+    LEFT JOIN partners p ON d.partner_id = p.id
+    WHERE d.id = ?
+  `).get(req.params.id);
+
+  res.json(updated);
 }
 
 function updateStage(req, res) {
@@ -464,4 +504,4 @@ function remove(req, res) {
   res.json({ message: 'Deal deleted' });
 }
 
-module.exports = { getOwners, getAll, getPipeline, getById, create, update, updateStage, updateLifecycle, merge, remove };
+module.exports = { getOwners, getAll, getPipeline, getById, create, update, updateSentiment, updateStage, updateLifecycle, merge, remove };

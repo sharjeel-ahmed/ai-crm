@@ -10,6 +10,7 @@ router.get('/pipeline', c.getPipeline);
 router.get('/:id', c.getById);
 router.post('/', c.create);
 router.put('/:id', c.update);
+router.patch('/:id/sentiment', c.updateSentiment);
 router.patch('/:id/stage', c.updateStage);
 router.patch('/:id/lifecycle', c.updateLifecycle);
 router.post('/:id/merge', c.merge);

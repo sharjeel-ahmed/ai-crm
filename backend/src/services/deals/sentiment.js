@@ -92,6 +92,24 @@ function getRelatedEmailsForDeal(db, deal) {
 function refreshDealSentiment(db, deal) {
   if (!deal) return deal;
 
+  const normalizedSentiment = ['positive', 'negative', 'neutral'].includes(deal.sentiment)
+    ? deal.sentiment
+    : 'neutral';
+
+  if (deal.sentiment_manual) {
+    if (deal.sentiment !== normalizedSentiment) {
+      db.prepare("UPDATE deals SET sentiment = ?, sentiment_updated_at = datetime('now') WHERE id = ?").run(normalizedSentiment, deal.id);
+    } else if (!deal.sentiment_updated_at) {
+      db.prepare("UPDATE deals SET sentiment_updated_at = datetime('now') WHERE id = ?").run(deal.id);
+    }
+
+    return {
+      ...deal,
+      sentiment: normalizedSentiment,
+      sentiment_updated_at: deal.sentiment_updated_at || new Date().toISOString(),
+    };
+  }
+
   const emails = getRelatedEmailsForDeal(db, deal);
   const { sentiment } = deriveSentiment(emails);
 

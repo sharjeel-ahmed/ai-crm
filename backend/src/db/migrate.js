@@ -22,6 +22,7 @@ function runMigrations() {
   addColumn('deals', 'partner_id', 'INTEGER REFERENCES partners(id)');
   addColumn('deals', 'sentiment', "TEXT NOT NULL DEFAULT 'neutral' CHECK (sentiment IN ('positive', 'negative', 'neutral'))");
   addColumn('deals', 'sentiment_updated_at', 'TEXT');
+  addColumn('deals', 'sentiment_manual', 'INTEGER NOT NULL DEFAULT 0');
   addColumn('deals', 'lifecycle_state', "TEXT NOT NULL DEFAULT 'active' CHECK (lifecycle_state IN ('active', 'closed'))");
   addColumn('deals', 'closed_at', 'TEXT');
   addColumn('deals', 'lifecycle_manual', 'INTEGER NOT NULL DEFAULT 0');

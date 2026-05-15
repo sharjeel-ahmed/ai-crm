@@ -21,6 +21,7 @@ function addColumns() {
     { table: 'deals', column: 'lead_source', definition: 'TEXT' },
     { table: 'deals', column: 'sentiment', definition: "TEXT NOT NULL DEFAULT 'neutral' CHECK (sentiment IN ('positive', 'negative', 'neutral'))" },
     { table: 'deals', column: 'sentiment_updated_at', definition: 'TEXT' },
+    { table: 'deals', column: 'sentiment_manual', definition: 'INTEGER NOT NULL DEFAULT 0' },
     { table: 'deals', column: 'lifecycle_state', definition: "TEXT NOT NULL DEFAULT 'active' CHECK (lifecycle_state IN ('active', 'closed'))" },
     { table: 'deals', column: 'closed_at', definition: 'TEXT' },
     { table: 'activities', column: 'ai_generated', definition: 'INTEGER DEFAULT 0' },
