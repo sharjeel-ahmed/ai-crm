@@ -44,6 +44,7 @@ export default function AILogsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [retryingAll, setRetryingAll] = useState(false);
   const [retryingId, setRetryingId] = useState(null);
   const [expanded, setExpanded] = useState(new Set());
   const [activeTab, setActiveTab] = useState({});
@@ -104,6 +105,21 @@ export default function AILogsPage() {
     }
   };
 
+  const handleRetryFailed = async () => {
+    if (!confirm('Retry the last 20 failed AI logs?')) return;
+    setRetryingAll(true);
+    try {
+      const res = await api.post('/ai-logs/retry-failed');
+      const { succeeded = 0, failed = 0 } = res.data || {};
+      toast.success(`Retried ${succeeded} failed AI log(s)${failed ? `, ${failed} still failed` : ''}`);
+      loadLogs();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error retrying failed AI logs');
+    } finally {
+      setRetryingAll(false);
+    }
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -158,6 +174,14 @@ export default function AILogsPage() {
         >
           <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
           {syncing ? 'Syncing...' : 'Sync'}
+        </button>
+        <button
+          onClick={handleRetryFailed}
+          disabled={retryingAll}
+          className="inline-flex items-center gap-2 px-4 py-2 border border-blue-200 text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <RefreshCw size={16} className={retryingAll ? 'animate-spin' : ''} />
+          {retryingAll ? 'Retrying...' : 'Retry Last 20 Failed'}
         </button>
       </div>
 

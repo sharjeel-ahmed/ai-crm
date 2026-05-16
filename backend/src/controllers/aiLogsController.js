@@ -137,4 +137,51 @@ async function retryLog(req, res) {
   }
 }
 
-module.exports = { getLogs, deleteLog, deleteFromHere, retryLog };
+async function retryFailedLogs(req, res) {
+  const db = getDb();
+  const clientId = getEffectiveClientId(req, db);
+
+  const failedEmails = db.prepare(`
+    SELECT id
+    FROM emails
+    WHERE client_id = ? AND ai_error IS NOT NULL
+    ORDER BY date DESC, id DESC
+    LIMIT 20
+  `).all(clientId);
+
+  if (failedEmails.length === 0) {
+    return res.status(400).json({ error: 'No failed AI logs found to retry' });
+  }
+
+  let retried = 0;
+  let succeeded = 0;
+  let failed = 0;
+  const errors = [];
+
+  for (const row of failedEmails) {
+    retried += 1;
+    try {
+      const result = await retryEmailById(row.id, clientId);
+      if (result.success) {
+        succeeded += 1;
+      } else {
+        failed += 1;
+        errors.push(result.error || 'Retry failed');
+      }
+    } catch (err) {
+      failed += 1;
+      errors.push(err.message || 'Retry failed');
+    }
+  }
+
+  res.json({
+    success: true,
+    retried,
+    succeeded,
+    failed,
+    message: `Retried ${retried} failed AI log(s)`,
+    errors: errors.slice(0, 5),
+  });
+}
+
+module.exports = { getLogs, deleteLog, deleteFromHere, retryLog, retryFailedLogs };
