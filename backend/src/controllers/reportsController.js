@@ -492,7 +492,7 @@ function dashboard(req, res) {
       ON d.stage_id = ds.id
      AND ${activeDealFilter}
      AND ds.is_closed = 0
-     ${isScoped ? 'AND d.owner_id = ?' : ''}
+     ${ownerClause}
     WHERE ds.is_closed = 0
     GROUP BY ds.id
     ORDER BY ds.display_order
@@ -703,7 +703,7 @@ function funnelDashboard(req, res) {
     SELECT ds.name AS stage, ds.display_order, ds.is_closed, COUNT(d.id) AS deal_count
     FROM deal_stages ds
     LEFT JOIN deals d ON d.stage_id = ds.id AND ${activeDealFilter}
-      ${isScoped ? 'AND d.owner_id = ?' : ''}
+      ${ownerClause}
     GROUP BY ds.id
     ORDER BY ds.display_order
   `).all(...ownerParams);
@@ -849,7 +849,7 @@ function funnelDashboard(req, res) {
       ON d.stage_id = ds.id
      AND ${activeDealFilter}
      AND ds.is_closed = 0
-     ${isScoped ? 'AND d.owner_id = ?' : ''}
+     ${ownerClause}
     WHERE ds.is_closed = 0
     GROUP BY ds.id
     ORDER BY ds.display_order
