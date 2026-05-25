@@ -23,6 +23,32 @@ function getScopedContact(db, req, id) {
   return db.prepare(query).get(...params);
 }
 
+function getOwnerById(db, ownerId) {
+  if (!ownerId) return null;
+  return db.prepare('SELECT id, client_id FROM users WHERE id = ? AND is_active = 1').get(ownerId);
+}
+
+function resolveOwnerId(db, ownerId, fallbackOwnerId, req) {
+  const resolvedOwnerId = ownerId !== undefined && ownerId !== null && ownerId !== '' ? parseInt(ownerId, 10) : fallbackOwnerId;
+  if (!resolvedOwnerId) {
+    return { error: 'Owner is required' };
+  }
+
+  if (Number.isNaN(resolvedOwnerId)) {
+    return { error: 'Owner must be a valid user' };
+  }
+
+  const owner = getOwnerById(db, resolvedOwnerId);
+  if (!owner) {
+    return { error: 'Selected owner was not found or is inactive' };
+  }
+  if (req.user.client_id && Number(owner.client_id) !== Number(req.user.client_id)) {
+    return { error: 'Selected owner belongs to a different client' };
+  }
+
+  return { ownerId: resolvedOwnerId };
+}
+
 function getAll(req, res) {
   const db = getDb();
   const scope = scopeQuery(req);
@@ -77,13 +103,18 @@ function update(req, res) {
   const contact = getScopedContact(db, req, req.params.id);
   if (!contact) return res.status(404).json({ error: 'Contact not found' });
 
+  const ownerResolution = resolveOwnerId(db, owner_id, contact.owner_id, req);
+  if (ownerResolution.error) {
+    return res.status(400).json({ error: ownerResolution.error });
+  }
+
   db.prepare(`UPDATE contacts SET first_name = ?, last_name = ?, email = ?, phone = ?, job_title = ?, company_id = ?, owner_id = ?, partner_id = ?, updated_at = datetime('now') WHERE id = ?`)
     .run(
       first_name || contact.first_name, last_name || contact.last_name,
       email !== undefined ? email : contact.email, phone !== undefined ? phone : contact.phone,
       job_title !== undefined ? job_title : contact.job_title,
       company_id !== undefined ? company_id : contact.company_id,
-      owner_id !== undefined ? owner_id : contact.owner_id,
+      ownerResolution.ownerId,
       partner_id !== undefined ? (partner_id || null) : contact.partner_id,
       req.params.id
     );

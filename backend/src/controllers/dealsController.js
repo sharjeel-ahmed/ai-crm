@@ -68,7 +68,7 @@ function getScopedDeal(db, req, dealId) {
 
 function getOwnerById(db, ownerId) {
   if (!ownerId) return null;
-  return db.prepare('SELECT id, name, email, role FROM users WHERE id = ? AND is_active = 1').get(ownerId);
+  return db.prepare('SELECT id, name, email, role, client_id FROM users WHERE id = ? AND is_active = 1').get(ownerId);
 }
 
 function resolveOwnerId(db, ownerId, fallbackOwnerId, req) {
@@ -85,7 +85,7 @@ function resolveOwnerId(db, ownerId, fallbackOwnerId, req) {
   if (!owner) {
     return { error: 'Selected owner was not found or is inactive' };
   }
-  if (req.user.client_id && owner.client_id !== req.user.client_id) {
+  if (req.user.client_id && Number(owner.client_id) !== Number(req.user.client_id)) {
     return { error: 'Selected owner belongs to a different client' };
   }
 
