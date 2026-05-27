@@ -71,6 +71,27 @@ function getOwnerById(db, ownerId) {
   return db.prepare('SELECT id, name, email, role, client_id FROM users WHERE id = ? AND is_active = 1').get(ownerId);
 }
 
+function normalizeIdempotencyKey(value) {
+  if (!value) return null;
+  const key = String(value).trim();
+  return key.length > 0 && key.length <= 128 ? key : null;
+}
+
+function getDealWithRelations(db, dealId) {
+  return db.prepare(`
+    SELECT d.*, ds.name as stage_name, c.name as company_name,
+      ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
+      p.name as partner_name
+    FROM deals d
+    LEFT JOIN deal_stages ds ON d.stage_id = ds.id
+    LEFT JOIN companies c ON d.company_id = c.id
+    LEFT JOIN contacts ct ON d.contact_id = ct.id
+    LEFT JOIN users u ON d.owner_id = u.id
+    LEFT JOIN partners p ON d.partner_id = p.id
+    WHERE d.id = ?
+  `).get(dealId);
+}
+
 function resolveOwnerId(db, ownerId, fallbackOwnerId, req) {
   const resolvedOwnerId = ownerId !== undefined && ownerId !== null && ownerId !== '' ? parseInt(ownerId, 10) : fallbackOwnerId;
   if (!resolvedOwnerId) {
@@ -286,36 +307,54 @@ function create(req, res) {
   if (!company_id) return res.status(400).json({ error: 'Company is required' });
 
   const db = getDb();
+  const clientId = getEffectiveClientId(req, db);
   const ownerResolution = resolveOwnerId(db, owner_id, req.user.id, req);
   if (ownerResolution.error) {
     return res.status(400).json({ error: ownerResolution.error });
   }
 
-  const resolvedPriority = resolvePriority(db, company_id, priority);
-  const maxPos = db.prepare('SELECT COALESCE(MAX(position), 0) + 1 as next FROM deals WHERE stage_id = ?').get(stage_id);
-  const result = db.prepare("INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id, priority, position, stage_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))")
-    .run(title, value || 0, stage_id, company_id || null, contact_id || null, ownerResolution.ownerId, expected_close || null, notes || null, lead_source || null, partner_id || null, resolvedPriority, maxPos.next);
-  db.prepare('UPDATE deals SET client_id = ? WHERE id = ?').run(getEffectiveClientId(req, db), result.lastInsertRowid);
-  const deal = db.prepare(`
-    SELECT d.*, ds.name as stage_name, c.name as company_name,
-      ct.first_name || ' ' || ct.last_name as contact_name, u.name as owner_name,
-      p.name as partner_name
-    FROM deals d
-    LEFT JOIN deal_stages ds ON d.stage_id = ds.id
-    LEFT JOIN companies c ON d.company_id = c.id
-    LEFT JOIN contacts ct ON d.contact_id = ct.id
-    LEFT JOIN users u ON d.owner_id = u.id
-    LEFT JOIN partners p ON d.partner_id = p.id
-    WHERE d.id = ?
-  `).get(result.lastInsertRowid);
+  const route = 'POST /deals';
+  const idempotencyKey = normalizeIdempotencyKey(req.get('Idempotency-Key'));
+  const createDeal = db.transaction(() => {
+    if (idempotencyKey) {
+      try {
+        db.prepare('INSERT INTO idempotency_keys (client_id, route, idempotency_key, entity_type) VALUES (?, ?, ?, ?)')
+          .run(clientId || 0, route, idempotencyKey, 'deal');
+      } catch {
+        const existing = db.prepare('SELECT entity_id FROM idempotency_keys WHERE client_id = ? AND route = ? AND idempotency_key = ?')
+          .get(clientId || 0, route, idempotencyKey);
+        if (existing?.entity_id) return { existingId: existing.entity_id };
+        return { inProgress: true };
+      }
+    }
+
+    const resolvedPriority = resolvePriority(db, company_id, priority);
+    const maxPos = db.prepare('SELECT COALESCE(MAX(position), 0) + 1 as next FROM deals WHERE stage_id = ?').get(stage_id);
+    const result = db.prepare("INSERT INTO deals (title, value, stage_id, company_id, contact_id, owner_id, expected_close, notes, lead_source, partner_id, priority, position, stage_changed_at, client_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)")
+      .run(title, value || 0, stage_id, company_id || null, contact_id || null, ownerResolution.ownerId, expected_close || null, notes || null, lead_source || null, partner_id || null, resolvedPriority, maxPos.next, clientId);
+    const deal = getDealWithRelations(db, result.lastInsertRowid);
+
+    // Log deal creation activity
+    db.prepare(
+      "INSERT INTO activities (type, subject, description, deal_id, user_id, client_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))"
+    ).run(`Deal created`, `Deal "${title}" created in stage ${deal.stage_name}${deal.company_name ? ` for ${deal.company_name}` : ''}`, deal.id, req.user.id, clientId);
+
+    if (idempotencyKey) {
+      db.prepare('UPDATE idempotency_keys SET entity_id = ? WHERE client_id = ? AND route = ? AND idempotency_key = ?')
+        .run(result.lastInsertRowid, clientId || 0, route, idempotencyKey);
+    }
+
+    return { deal };
+  });
+
+  const result = createDeal();
+  if (result.inProgress) {
+    return res.status(409).json({ error: 'A matching deal creation request is already in progress' });
+  }
+  const deal = result.existingId ? getDealWithRelations(db, result.existingId) : result.deal;
   const sentimentDeal = refreshDealSentiment(db, deal);
 
-  // Log deal creation activity
-  db.prepare(
-    "INSERT INTO activities (type, subject, description, deal_id, user_id, client_id, created_at, updated_at) VALUES ('note', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))"
-  ).run(`Deal created`, `Deal "${title}" created in stage ${deal.stage_name}${deal.company_name ? ` for ${deal.company_name}` : ''}`, deal.id, req.user.id, getEffectiveClientId(req, db));
-
-  res.status(201).json(sentimentDeal);
+  res.status(result.existingId ? 200 : 201).json(sentimentDeal);
 }
 
 function update(req, res) {

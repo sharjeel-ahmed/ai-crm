@@ -13,6 +13,11 @@ const leadSources = ['Inbound', 'Outbound', 'Channel Partner', 'Referral', 'Webs
 const priorities = ['low', 'medium', 'high'];
 const emptyForm = { title: '', value: '', stage_id: '', company_id: '', contact_id: '', owner_id: '', expected_close: '', notes: '', lead_source: '', partner_id: '', priority: 'medium' };
 
+function createIdempotencyKey() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export default function DealsPage() {
   usePageTitle('Deals');
   const { user } = useAuth();
@@ -25,6 +30,8 @@ export default function DealsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState(null);
+  const [submitKey, setSubmitKey] = useState('');
+  const [saving, setSaving] = useState(false);
   const [dealFilter, setDealFilter] = useState(() => localStorage.getItem('dealFilter') || 'all');
   const [stageFilter, setStageFilter] = useState(() => localStorage.getItem('dealStageFilter') || 'all');
   const [sourceFilter, setSourceFilter] = useState(() => localStorage.getItem('dealSourceFilter') || 'all');
@@ -51,6 +58,8 @@ export default function DealsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
     const payload = {
       ...form,
       value: parseFloat(form.value) || 0,
@@ -66,15 +75,18 @@ export default function DealsPage() {
         await api.put(`/deals/${editing}`, payload);
         toast.success('Deal updated');
       } else {
-        await api.post('/deals', payload);
+        await api.post('/deals', payload, { headers: { 'Idempotency-Key': submitKey || createIdempotencyKey() } });
         toast.success('Deal created');
       }
       setModalOpen(false);
       setForm(emptyForm);
       setEditing(null);
+      setSubmitKey('');
       load();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -89,6 +101,7 @@ export default function DealsPage() {
       priority: deal.priority || 'medium',
     });
     setEditing(deal.id);
+    setSubmitKey('');
     setModalOpen(true);
   };
 
@@ -177,7 +190,7 @@ export default function DealsPage() {
             {leadSources.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        <button onClick={() => { setForm({ ...emptyForm, stage_id: stages[0]?.id || '', owner_id: owners[0]?.id || '' }); setEditing(null); setModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <button onClick={() => { setForm({ ...emptyForm, stage_id: stages[0]?.id || '', owner_id: owners[0]?.id || '' }); setEditing(null); setSubmitKey(createIdempotencyKey()); setModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           <Plus size={20} /> Add Deal
         </button>
       </div>
@@ -265,8 +278,8 @@ export default function DealsPage() {
             <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="flex justify-end gap-3 pt-4">
-            <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+            <button type="button" onClick={() => setModalOpen(false)} disabled={saving} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60">Cancel</button>
+            <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">{saving ? 'Saving...' : 'Save'}</button>
           </div>
         </form>
       </Modal>

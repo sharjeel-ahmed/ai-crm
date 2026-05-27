@@ -80,6 +80,19 @@ function runMigrations() {
     )
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS idempotency_keys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL DEFAULT 0,
+      route TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(client_id, route, idempotency_key)
+    )
+  `);
+
   const defaultClient = ensureDefaultClient(db);
 
   // Backfill users and tenant-owned data into the default client.
