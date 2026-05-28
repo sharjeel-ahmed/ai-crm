@@ -69,9 +69,8 @@ function create(req, res) {
   if (!type || !subject) return res.status(400).json({ error: 'Type and subject required' });
 
   const db = getDb();
-  const result = db.prepare('INSERT INTO activities (type, subject, description, due_date, deal_id, contact_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .run(type, subject, description || null, due_date || null, deal_id || null, contact_id || null, req.user.id);
-  db.prepare('UPDATE activities SET client_id = ? WHERE id = ?').run(getEffectiveClientId(req, db), result.lastInsertRowid);
+  const result = db.prepare('INSERT INTO activities (type, subject, description, due_date, deal_id, contact_id, user_id, client_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(type, subject, description || null, due_date || null, deal_id || null, contact_id || null, req.user.id, getEffectiveClientId(req, db));
   const activity = db.prepare(`
     SELECT a.*, u.name as user_name
     FROM activities a LEFT JOIN users u ON a.user_id = u.id WHERE a.id = ?
@@ -85,7 +84,9 @@ function update(req, res) {
   const activity = getScopedActivity(db, req, req.params.id);
   if (!activity) return res.status(404).json({ error: 'Activity not found' });
 
-  db.prepare(`UPDATE activities SET type = ?, subject = ?, description = ?, due_date = ?, is_completed = ?, deal_id = ?, contact_id = ?, updated_at = datetime('now') WHERE id = ?`)
+  const dueDateChanged = due_date !== undefined && due_date !== activity.due_date;
+
+  db.prepare(`UPDATE activities SET type = ?, subject = ?, description = ?, due_date = ?, is_completed = ?, deal_id = ?, contact_id = ?, updated_at = datetime('now')${dueDateChanged ? ', push_notified_at = NULL' : ''} WHERE id = ?`)
     .run(
       type || activity.type, subject || activity.subject,
       description !== undefined ? description : activity.description,

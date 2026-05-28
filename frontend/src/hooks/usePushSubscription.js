@@ -19,19 +19,41 @@ export default function usePushSubscription() {
 
     async function subscribe() {
       try {
+        if ('Notification' in window && Notification.permission === 'default') {
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') return;
+        }
+        if ('Notification' in window && Notification.permission !== 'granted') return;
+
         const registration = await navigator.serviceWorker.register('/sw.js');
         await navigator.serviceWorker.ready;
 
         const { data } = await api.get('/push/vapid-key');
         if (!data.publicKey) return;
 
+        const subscribeWithCurrentKey = () => registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(data.publicKey),
+        });
+
         let subscription = await registration.pushManager.getSubscription();
-        if (!subscription) {
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(data.publicKey),
-          });
+        if (subscription && localStorage.getItem('pushPublicKey') !== data.publicKey) {
+          await subscription.unsubscribe();
+          subscription = null;
         }
+
+        if (!subscription) {
+          try {
+            subscription = await subscribeWithCurrentKey();
+          } catch (err) {
+            if (err?.name !== 'InvalidStateError') throw err;
+            const oldSubscription = await registration.pushManager.getSubscription();
+            await oldSubscription?.unsubscribe();
+            subscription = await subscribeWithCurrentKey();
+          }
+        }
+
+        if (!subscription) return;
 
         const subJson = subscription.toJSON();
         await api.post('/push/subscribe', {
@@ -39,6 +61,7 @@ export default function usePushSubscription() {
           keys: subJson.keys,
         });
 
+        localStorage.setItem('pushPublicKey', data.publicKey);
         subscribed.current = true;
       } catch {
         // Push not supported or permission denied — fall back to in-tab reminders
