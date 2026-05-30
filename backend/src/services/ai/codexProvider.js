@@ -1,5 +1,11 @@
 const { spawn } = require('child_process');
 const { getSystemPrompt, buildUserPrompt } = require('./extractionPrompt');
+const path = require('path');
+
+const codexCommand = process.env.CODEX_CLI_PATH
+  || (process.platform === 'win32' && process.env.APPDATA
+    ? path.join(process.env.APPDATA, 'npm', 'codex.cmd')
+    : 'codex');
 
 function runCodex(input, model) {
   return new Promise((resolve, reject) => {
@@ -13,9 +19,10 @@ function runCodex(input, model) {
       args.push('--model', model);
     }
 
-    const child = spawn('codex', args, {
+    const child = spawn(codexCommand, args, {
       timeout: 120000,
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell: process.platform === 'win32',
     });
 
     let stdout = '';
@@ -69,6 +76,22 @@ function extractJSON(text) {
   return null;
 }
 
+function extractAnyJSON(text) {
+  try { return JSON.parse(text); } catch (e) {}
+
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) {
+    try { return JSON.parse(fenceMatch[1].trim()); } catch (e) {}
+  }
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try { return JSON.parse(jsonMatch[0]); } catch (e) {}
+  }
+
+  return null;
+}
+
 async function extract(email, apiKey, model) {
   const systemPrompt = getSystemPrompt();
   const userPrompt = buildUserPrompt(email);
@@ -91,4 +114,16 @@ async function test(apiKey, model) {
   return 'Codex CLI responded: ' + extractFinalMessage(output).substring(0, 50);
 }
 
-module.exports = { extract, test };
+async function generateJson({ model, system, prompt, schema }) {
+  const schemaInstruction = schema
+    ? `\n\nRequired JSON schema:\n${JSON.stringify(schema, null, 2)}\n\nAll required arrays must contain useful objects. Do not return empty arrays when source metrics include any deals, reps, stages, or risks.`
+    : '';
+  const fullPrompt = `${system}${schemaInstruction}\n\nIMPORTANT: Respond ONLY with one valid JSON object. No markdown, no code fences, no explanation.\n\n${prompt}`;
+  const output = await runCodex(fullPrompt, model);
+  const finalMessage = extractFinalMessage(output);
+  const parsed = extractAnyJSON(finalMessage);
+  if (!parsed) throw new Error('Failed to parse Codex report response');
+  return { data: parsed, rawResponse: output };
+}
+
+module.exports = { extract, test, generateJson };

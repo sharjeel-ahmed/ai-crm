@@ -8,6 +8,7 @@ router.use(authenticate);
 router.get('/dashboard', c.dashboard);
 router.get('/funnel-dashboard', c.funnelDashboard);
 router.get('/summary', c.getSummary);
+router.get('/gong-analytics', c.gongAnalytics);
 router.get('/pipeline-value', c.pipelineValue);
 router.get('/rep-performance', c.repPerformance);
 router.get('/deal-aging', c.dealAging);

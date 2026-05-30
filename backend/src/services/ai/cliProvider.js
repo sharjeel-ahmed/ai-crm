@@ -56,6 +56,22 @@ function extractJSON(text) {
   return null;
 }
 
+function extractAnyJSON(text) {
+  try { return JSON.parse(text); } catch (e) {}
+
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) {
+    try { return JSON.parse(fenceMatch[1].trim()); } catch (e) {}
+  }
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try { return JSON.parse(jsonMatch[0]); } catch (e) {}
+  }
+
+  return null;
+}
+
 async function extract(email, apiKey, model) {
   const systemPrompt = getSystemPrompt();
   const userPrompt = buildUserPrompt(email);
@@ -76,4 +92,12 @@ async function test(apiKey, model) {
   return 'Claude CLI responded: ' + output.substring(0, 50);
 }
 
-module.exports = { extract, test };
+async function generateJson({ system, prompt }) {
+  const fullPrompt = `${system}\n\nIMPORTANT: Respond ONLY with one valid JSON object. No markdown, no code fences, no explanation.\n\n${prompt}`;
+  const output = await runClaude(fullPrompt);
+  const parsed = extractAnyJSON(output);
+  if (!parsed) throw new Error('Failed to parse Claude CLI report response');
+  return { data: parsed, rawResponse: output };
+}
+
+module.exports = { extract, test, generateJson };

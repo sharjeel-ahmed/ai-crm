@@ -83,4 +83,48 @@ async function test(apiKey, model) {
   });
 }
 
-module.exports = { extract, test };
+async function generateJson({ apiKey, model, system, prompt, schema, maxTokens = 1800 }) {
+  const body = JSON.stringify({
+    model: model || 'gpt-4o',
+    max_tokens: maxTokens,
+    response_format: schema ? {
+      type: 'json_schema',
+      json_schema: { name: 'crm_report', schema, strict: true }
+    } : { type: 'json_object' },
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: prompt }
+    ]
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.openai.com',
+      path: '/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) return reject(new Error(parsed.error.message));
+          const content = parsed.choices?.[0]?.message?.content;
+          if (!content) return reject(new Error('OpenAI returned an empty report'));
+          resolve({ data: JSON.parse(content), rawResponse: data });
+        } catch (e) {
+          reject(new Error('Failed to parse OpenAI report response'));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+module.exports = { extract, test, generateJson };

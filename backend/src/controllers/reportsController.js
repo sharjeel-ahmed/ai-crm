@@ -1,6 +1,7 @@
 const { getDb } = require('../db/connection');
 const { syncDealLifecycleStates } = require('../services/deals/lifecycle');
-const { getClientFilter } = require('../utils/tenant');
+const { generateJson } = require('../services/ai/provider');
+const { getClientFilter, getEffectiveClientId } = require('../utils/tenant');
 
 function formatSqlDate(date, endOfDay = false) {
   const year = date.getFullYear();
@@ -80,6 +81,197 @@ function getScopedOwnerContext(req) {
     isScoped: req.query.my_deals === 'true' || Boolean(req.query.owner_id),
     scopedUserId,
   };
+}
+
+function getActivityScope(req) {
+  const clientFilter = getClientFilter(req, 'a');
+  const clauseParts = [clientFilter.clause];
+  const params = [...clientFilter.params];
+  if (req.user.role === 'sales_rep') {
+    clauseParts.push('AND (a.user_id = ? OR d.owner_id = ?)');
+    params.push(req.user.id, req.user.id);
+    return { clause: clauseParts.join(' '), params };
+  }
+  if (req.query.my_deals === 'true') {
+    clauseParts.push('AND (a.user_id = ? OR d.owner_id = ?)');
+    params.push(req.user.id, req.user.id);
+    return { clause: clauseParts.join(' '), params };
+  }
+  if (req.query.owner_id) {
+    const ownerId = parseInt(req.query.owner_id, 10);
+    clauseParts.push('AND (a.user_id = ? OR d.owner_id = ?)');
+    params.push(ownerId, ownerId);
+    return { clause: clauseParts.join(' '), params };
+  }
+  return { clause: clauseParts.join(' '), params };
+}
+
+function getRepScope(req) {
+  const clientFilter = getClientFilter(req, 'u');
+  const clauseParts = [clientFilter.clause];
+  const params = [...clientFilter.params];
+  if (req.user.role === 'sales_rep') {
+    clauseParts.push('AND u.id = ?');
+    params.push(req.user.id);
+    return { clause: clauseParts.join(' '), params };
+  }
+  if (req.query.my_deals === 'true') {
+    clauseParts.push('AND u.id = ?');
+    params.push(req.user.id);
+    return { clause: clauseParts.join(' '), params };
+  }
+  if (req.query.owner_id) {
+    clauseParts.push('AND u.id = ?');
+    params.push(parseInt(req.query.owner_id, 10));
+    return { clause: clauseParts.join(' '), params };
+  }
+  return { clause: clauseParts.join(' '), params };
+}
+
+function daysBetweenNow(dateString) {
+  if (!dateString) return null;
+  const parsed = new Date(dateString);
+  if (isNaN(parsed)) return null;
+  return Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 86400000));
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+const GONG_REPORT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['executiveSummary', 'keyInsights', 'risks', 'recommendedActions', 'coachingNotes'],
+  properties: {
+    executiveSummary: {
+      type: 'string',
+      description: 'Two to three concise sentences summarizing sales health.'
+    },
+    keyInsights: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 5,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['title', 'detail', 'severity'],
+        properties: {
+          title: { type: 'string' },
+          detail: { type: 'string' },
+          severity: { type: 'string', enum: ['positive', 'neutral', 'warning', 'critical'] }
+        }
+      }
+    },
+    risks: {
+      type: 'array',
+      minItems: 2,
+      maxItems: 5,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['deal', 'reason', 'nextStep'],
+        properties: {
+          deal: { type: 'string' },
+          reason: { type: 'string' },
+          nextStep: { type: 'string' }
+        }
+      }
+    },
+    recommendedActions: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 6,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['action', 'owner', 'priority'],
+        properties: {
+          action: { type: 'string' },
+          owner: { type: 'string' },
+          priority: { type: 'string', enum: ['high', 'medium', 'low'] }
+        }
+      }
+    },
+    coachingNotes: {
+      type: 'array',
+      minItems: 2,
+      maxItems: 5,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['rep', 'note'],
+        properties: {
+          rep: { type: 'string' },
+          note: { type: 'string' }
+        }
+      }
+    }
+  }
+};
+
+function normalizeAiReport(value) {
+  if (!value || typeof value !== 'object') return null;
+  return {
+    executiveSummary: String(value.executiveSummary || '').trim(),
+    keyInsights: Array.isArray(value.keyInsights) ? value.keyInsights.slice(0, 5) : [],
+    risks: Array.isArray(value.risks) ? value.risks.slice(0, 5) : [],
+    recommendedActions: Array.isArray(value.recommendedActions) ? value.recommendedActions.slice(0, 6) : [],
+    coachingNotes: Array.isArray(value.coachingNotes) ? value.coachingNotes.slice(0, 5) : [],
+  };
+}
+
+async function generateGongSmartReport(req, metrics) {
+  const db = getDb();
+  const clientId = getEffectiveClientId(req, db);
+  const aiSettings = db.prepare('SELECT * FROM ai_settings WHERE client_id = ? AND is_active = 1 LIMIT 1').get(clientId);
+  if (!aiSettings) {
+    return { status: 'not_configured', error: 'No active AI provider configured.' };
+  }
+  if (!['claude-cli', 'codex-cli'].includes(aiSettings.provider) && !aiSettings.api_key) {
+    return { status: 'not_configured', error: 'Active AI provider is missing an API key.' };
+  }
+
+  const system = [
+    'You are a Gong-style revenue intelligence analyst for a B2B CRM.',
+    'Use only the supplied CRM metrics. Do not invent deals, reps, values, activities, or external context.',
+    'Give direct sales management insights: pipeline risk, engagement quality, coaching opportunities, and next best actions.',
+    'Return concise JSON matching the requested schema.'
+  ].join(' ');
+
+  const prompt = [
+    'Generate a smart sales analytics report for this reporting window.',
+    'Interpret the metrics like a sales leader would. Be specific about weak signals and recommended follow-up.',
+    '',
+    JSON.stringify(metrics, null, 2)
+  ].join('\n');
+
+  try {
+    const result = await generateJson(aiSettings.provider, aiSettings.api_key, aiSettings.model, {
+      system,
+      prompt,
+      schema: GONG_REPORT_SCHEMA,
+      maxTokens: 1800,
+    });
+    const report = normalizeAiReport(result.data);
+    if (!report?.executiveSummary) {
+      return { status: 'error', provider: aiSettings.provider, model: aiSettings.model, error: 'AI provider returned an empty report.' };
+    }
+    return {
+      status: 'generated',
+      provider: aiSettings.provider,
+      model: aiSettings.model,
+      generatedAt: new Date().toISOString(),
+      ...report,
+    };
+  } catch (err) {
+    return {
+      status: 'error',
+      provider: aiSettings.provider,
+      model: aiSettings.model,
+      error: err.message || 'Failed to generate AI report.',
+    };
+  }
 }
 
 function getSummary(req, res) {
@@ -166,6 +358,244 @@ function getSummary(req, res) {
     staleDeals: staleDeals.count,
     inactiveDeals,
   });
+}
+
+async function gongAnalytics(req, res) {
+  const db = getDb();
+  syncDealLifecycleStates(db);
+  const range = getDateRange(req);
+  const dealScope = getScope(req, 'd');
+  const activityScope = getActivityScope(req);
+  const repScope = getRepScope(req);
+  const activeDealFilter = `COALESCE(d.lifecycle_state, 'active') != 'closed'`;
+
+  const activityMixRows = db.prepare(`
+    SELECT a.type, COUNT(*) AS count
+    FROM activities a
+    LEFT JOIN deals d ON d.id = a.deal_id
+    WHERE a.created_at >= ? AND a.created_at <= ?
+      ${activityScope.clause}
+    GROUP BY a.type
+  `).all(range.startSql, range.endSql, ...activityScope.params);
+
+  const activityMix = {
+    call: 0,
+    email: 0,
+    meeting: 0,
+    note: 0,
+    task: 0,
+  };
+  for (const row of activityMixRows) {
+    activityMix[row.type] = row.count;
+  }
+  const totalActivities = Object.values(activityMix).reduce((sum, value) => sum + value, 0);
+  const revenueTouches = activityMix.call + activityMix.email + activityMix.meeting;
+  const conversationRate = totalActivities > 0 ? Math.round(((activityMix.call + activityMix.meeting) / totalActivities) * 100) : 0;
+
+  const openDeals = db.prepare(`
+    SELECT COUNT(*) AS count, COALESCE(SUM(d.value), 0) AS value
+    FROM deals d
+    JOIN deal_stages ds ON ds.id = d.stage_id
+    WHERE ds.is_closed = 0
+      AND ${activeDealFilter}
+      ${dealScope.clause}
+  `).get(...dealScope.params);
+
+  const touchedOpenDeals = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM (
+      SELECT d.id
+      FROM deals d
+      JOIN deal_stages ds ON ds.id = d.stage_id
+      JOIN activities a ON a.deal_id = d.id
+      WHERE ds.is_closed = 0
+        AND ${activeDealFilter}
+        AND a.created_at >= ? AND a.created_at <= ?
+        ${dealScope.clause}
+      GROUP BY d.id
+    )
+  `).get(range.startSql, range.endSql, ...dealScope.params);
+
+  const repActivity = db.prepare(`
+    SELECT u.id AS user_id, u.name,
+           COUNT(a.id) AS total_activities,
+           SUM(CASE WHEN a.type = 'call' THEN 1 ELSE 0 END) AS calls,
+           SUM(CASE WHEN a.type = 'email' THEN 1 ELSE 0 END) AS emails,
+           SUM(CASE WHEN a.type = 'meeting' THEN 1 ELSE 0 END) AS meetings,
+           COUNT(DISTINCT a.deal_id) AS deals_touched
+    FROM users u
+    LEFT JOIN activities a
+      ON a.user_id = u.id
+     AND a.created_at >= ? AND a.created_at <= ?
+    LEFT JOIN deals d ON d.id = a.deal_id
+    WHERE u.role IN ('sales_rep', 'manager')
+      AND u.is_active = 1
+      ${repScope.clause}
+    GROUP BY u.id
+    ORDER BY total_activities DESC, meetings DESC, calls DESC, u.name ASC
+  `).all(range.startSql, range.endSql, ...repScope.params).map((row) => ({
+    ...row,
+    conversation_mix: row.total_activities > 0
+      ? Math.round(((row.calls + row.meetings) / row.total_activities) * 100)
+      : 0,
+  }));
+
+  const stageEngagement = db.prepare(`
+    SELECT ds.name AS stage,
+           ds.display_order,
+           COUNT(DISTINCT d.id) AS open_deals,
+           COALESCE(AVG(COALESCE(t.touch_count, 0)), 0) AS avg_touches,
+           SUM(CASE WHEN COALESCE(t.touch_count, 0) = 0 THEN 1 ELSE 0 END) AS untouched_deals,
+           COALESCE(AVG(julianday('now') - julianday(COALESCE(d.stage_changed_at, d.updated_at, d.created_at))), 0) AS avg_days_in_stage
+    FROM deal_stages ds
+    LEFT JOIN deals d
+      ON d.stage_id = ds.id
+     AND ${activeDealFilter}
+     AND ds.is_closed = 0
+     ${dealScope.clause}
+    LEFT JOIN (
+      SELECT deal_id, COUNT(*) AS touch_count
+      FROM activities
+      WHERE created_at >= ? AND created_at <= ?
+      GROUP BY deal_id
+    ) t ON t.deal_id = d.id
+    WHERE ds.is_closed = 0
+    GROUP BY ds.id
+    ORDER BY ds.display_order
+  `).all(...dealScope.params, range.startSql, range.endSql).map((row) => ({
+    ...row,
+    avg_touches: Number(row.avg_touches || 0).toFixed(1),
+    avg_days_in_stage: Math.round(row.avg_days_in_stage || 0),
+  }));
+
+  const dealRows = db.prepare(`
+    SELECT d.id, d.title, d.value, d.sentiment, d.created_at, d.stage_changed_at,
+           ds.name AS stage_name, COALESCE(ds.win_probability, 50) AS win_probability,
+           c.name AS company_name, u.name AS owner_name,
+           COUNT(a.id) AS touch_count,
+           SUM(CASE WHEN a.type = 'call' THEN 1 ELSE 0 END) AS calls,
+           SUM(CASE WHEN a.type = 'email' THEN 1 ELSE 0 END) AS emails,
+           SUM(CASE WHEN a.type = 'meeting' THEN 1 ELSE 0 END) AS meetings,
+           MAX(a.created_at) AS last_activity_at
+    FROM deals d
+    JOIN deal_stages ds ON ds.id = d.stage_id
+    LEFT JOIN companies c ON c.id = d.company_id
+    LEFT JOIN users u ON u.id = d.owner_id
+    LEFT JOIN activities a
+      ON a.deal_id = d.id
+     AND a.created_at >= ? AND a.created_at <= ?
+    WHERE ds.is_closed = 0
+      AND ${activeDealFilter}
+      ${dealScope.clause}
+    GROUP BY d.id
+    ORDER BY d.value DESC, d.created_at DESC
+  `).all(range.startSql, range.endSql, ...dealScope.params);
+
+  const dealEngagement = dealRows.map((deal) => {
+    const daysSinceActivity = daysBetweenNow(deal.last_activity_at);
+    const daysInStage = daysBetweenNow(deal.stage_changed_at || deal.created_at) || 0;
+    const engagementScore = clamp(
+      (deal.calls * 18) +
+      (deal.meetings * 24) +
+      (deal.emails * 9) +
+      (deal.sentiment === 'positive' ? 8 : 0) -
+      (deal.sentiment === 'negative' ? 18 : 0) -
+      (!deal.last_activity_at ? 24 : daysSinceActivity >= 14 ? 18 : daysSinceActivity >= 7 ? 10 : 0) -
+      (daysInStage >= 21 ? 12 : daysInStage >= 14 ? 6 : 0),
+      0,
+      100
+    );
+    const riskScore = clamp(
+      (deal.sentiment === 'negative' ? 30 : 0) +
+      (!deal.last_activity_at ? 28 : daysSinceActivity >= 14 ? 24 : daysSinceActivity >= 7 ? 12 : 0) +
+      (deal.touch_count <= 1 ? 18 : 0) +
+      (daysInStage >= 21 ? 18 : daysInStage >= 14 ? 10 : 0) +
+      (deal.value >= 500000 ? 6 : 0),
+      0,
+      100
+    );
+    const reasons = [];
+    if (!deal.last_activity_at) reasons.push('No activity in selected window');
+    else if (daysSinceActivity >= 7) reasons.push(`${daysSinceActivity} days since last touch`);
+    if (deal.touch_count <= 1) reasons.push('Low touch count');
+    if (deal.sentiment === 'negative') reasons.push('Negative sentiment');
+    if (daysInStage >= 14) reasons.push(`${daysInStage} days in stage`);
+
+    return {
+      ...deal,
+      days_since_activity: daysSinceActivity,
+      days_in_stage: daysInStage,
+      engagement_score: engagementScore,
+      risk_score: riskScore,
+      reasons,
+    };
+  });
+
+  const atRiskDeals = dealEngagement
+    .filter((deal) => deal.risk_score >= 30)
+    .sort((a, b) => b.risk_score - a.risk_score || b.value - a.value)
+    .slice(0, 8);
+
+  const bestEngagedDeals = dealEngagement
+    .filter((deal) => deal.engagement_score > 0)
+    .sort((a, b) => b.engagement_score - a.engagement_score || b.value - a.value)
+    .slice(0, 6);
+
+  const metrics = {
+    range: {
+      preset: range.preset,
+      start_date: range.startSql,
+      end_date: range.endSql,
+    },
+    summary: {
+      totalActivities,
+      revenueTouches,
+      conversationRate,
+      openDeals: openDeals.count,
+      openValue: openDeals.value,
+      touchedOpenDeals: touchedOpenDeals.count,
+      engagementCoverage: openDeals.count > 0 ? Math.round((touchedOpenDeals.count / openDeals.count) * 100) : 0,
+    },
+    activityMix,
+    repActivity,
+    stageEngagement,
+    atRiskDeals,
+    bestEngagedDeals,
+  };
+
+  const aiReport = await generateGongSmartReport(req, {
+    range: metrics.range,
+    summary: metrics.summary,
+    activityMix: metrics.activityMix,
+    repActivity: metrics.repActivity.slice(0, 10),
+    stageEngagement: metrics.stageEngagement,
+    atRiskDeals: metrics.atRiskDeals.map((deal) => ({
+      title: deal.title,
+      company: deal.company_name,
+      owner: deal.owner_name,
+      value: deal.value,
+      stage: deal.stage_name,
+      sentiment: deal.sentiment,
+      touchCount: deal.touch_count,
+      daysSinceActivity: deal.days_since_activity,
+      daysInStage: deal.days_in_stage,
+      riskScore: deal.risk_score,
+      reasons: deal.reasons,
+    })),
+    bestEngagedDeals: metrics.bestEngagedDeals.map((deal) => ({
+      title: deal.title,
+      company: deal.company_name,
+      owner: deal.owner_name,
+      value: deal.value,
+      stage: deal.stage_name,
+      engagementScore: deal.engagement_score,
+      calls: deal.calls,
+      emails: deal.emails,
+      meetings: deal.meetings,
+    })),
+  });
+
+  res.json({ ...metrics, aiReport });
 }
 
 function pipelineValue(req, res) {
@@ -909,4 +1339,4 @@ function setTarget(req, res) {
   res.json({ message: 'Target saved' });
 }
 
-module.exports = { dashboard, funnelDashboard, getSummary, pipelineValue, repPerformance, dealAging, attention, getTargets, setTarget };
+module.exports = { dashboard, funnelDashboard, getSummary, gongAnalytics, pipelineValue, repPerformance, dealAging, attention, getTargets, setTarget };

@@ -84,4 +84,47 @@ async function test(apiKey, model) {
   });
 }
 
-module.exports = { extract, test };
+async function generateJson({ apiKey, model, system, prompt, maxTokens = 1800 }) {
+  const body = JSON.stringify({
+    model: model || 'anthropic/claude-sonnet-4',
+    max_tokens: maxTokens,
+    messages: [
+      { role: 'system', content: `${system}\n\nRespond with a single valid JSON object and no markdown.` },
+      { role: 'user', content: prompt }
+    ],
+    response_format: { type: 'json_object' }
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'openrouter.ai',
+      path: '/api/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'http://localhost:3001',
+        'X-Title': 'Pazo CRM'
+      }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) return reject(new Error(parsed.error.message || JSON.stringify(parsed.error)));
+          const content = parsed.choices?.[0]?.message?.content;
+          if (!content) return reject(new Error('OpenRouter returned an empty report'));
+          resolve({ data: JSON.parse(content), rawResponse: data });
+        } catch (e) {
+          reject(new Error('Failed to parse OpenRouter report response'));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+module.exports = { extract, test, generateJson };

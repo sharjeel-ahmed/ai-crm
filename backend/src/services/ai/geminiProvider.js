@@ -73,4 +73,43 @@ async function test(apiKey, model) {
   });
 }
 
-module.exports = { extract, test };
+async function generateJson({ apiKey, model, system, prompt, schema, maxTokens = 1800 }) {
+  const modelName = model || 'gemini-2.0-flash';
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    systemInstruction: { parts: [{ text: system }] },
+    generationConfig: {
+      maxOutputTokens: maxTokens,
+      responseMimeType: 'application/json',
+      ...(schema ? { responseSchema: schema } : {})
+    }
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'generativelanguage.googleapis.com',
+      path: `/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) return reject(new Error(parsed.error.message));
+          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!text) return reject(new Error('Gemini returned an empty report'));
+          resolve({ data: JSON.parse(text), rawResponse: data });
+        } catch (e) {
+          reject(new Error('Failed to parse Gemini report response'));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+module.exports = { extract, test, generateJson };

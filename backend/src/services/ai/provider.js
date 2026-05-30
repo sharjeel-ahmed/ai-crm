@@ -96,4 +96,11 @@ async function testProvider(provider, apiKey, model) {
   return impl.test(apiKey, model);
 }
 
-module.exports = { extractFromEmail, testProvider };
+async function generateJson(provider, apiKey, model, { system, prompt, schema, maxTokens = 1800 }) {
+  const impl = providers[provider];
+  if (!impl) throw new Error(`Unknown AI provider: ${provider}`);
+  if (!impl.generateJson) throw new Error(`Provider ${provider} does not support report generation`);
+  return impl.generateJson({ apiKey, model, system, prompt, schema, maxTokens });
+}
+
+module.exports = { extractFromEmail, testProvider, generateJson };

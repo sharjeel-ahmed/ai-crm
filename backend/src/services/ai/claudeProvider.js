@@ -80,4 +80,52 @@ async function test(apiKey, model) {
   });
 }
 
-module.exports = { extract, test };
+async function generateJson({ apiKey, model, system, prompt, schema, maxTokens = 1800 }) {
+  const body = JSON.stringify({
+    model: model || 'claude-sonnet-4-20250514',
+    max_tokens: maxTokens,
+    system,
+    tools: [{
+      name: 'generate_crm_report',
+      description: 'Generate a CRM sales analytics report from supplied metrics',
+      input_schema: schema || {
+        type: 'object',
+        additionalProperties: true
+      }
+    }],
+    tool_choice: { type: 'tool', name: 'generate_crm_report' },
+    messages: [{ role: 'user', content: prompt }]
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.anthropic.com',
+      path: '/v1/messages',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) return reject(new Error(parsed.error.message));
+          const toolUse = parsed.content?.find(c => c.type === 'tool_use');
+          if (!toolUse?.input) return reject(new Error('Claude returned an empty report'));
+          resolve({ data: toolUse.input, rawResponse: data });
+        } catch (e) {
+          reject(new Error('Failed to parse Claude report response'));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+module.exports = { extract, test, generateJson };

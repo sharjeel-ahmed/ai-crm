@@ -2,11 +2,16 @@ import { useEffect, useState } from 'react';
 import api from '../api/client';
 import { formatDate } from '../utils/dateFormat';
 import {
+  Activity,
   AlertTriangle,
   CalendarRange,
   Clock3,
   Filter,
   Gauge,
+  MessageSquare,
+  PhoneCall,
+  ShieldAlert,
+  Sparkles,
   Target,
   TrendingUp,
   Trophy,
@@ -79,6 +84,14 @@ function MetricCard({ icon: Icon, label, value, subtext, accent = 'text-sky-600'
 
 const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
 
+function ScorePill({ score, type = 'risk' }) {
+  const isRisk = type === 'risk';
+  const tone = isRisk
+    ? score >= 70 ? 'bg-rose-100 text-rose-700' : score >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+    : score >= 70 ? 'bg-emerald-100 text-emerald-700' : score >= 40 ? 'bg-sky-100 text-sky-700' : 'bg-stone-100 text-stone-700';
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{Math.round(score || 0)}</span>;
+}
+
 export default function ReportsPage() {
   usePageTitle('Reports');
   const defaultDates = getPresetDates('last_week');
@@ -91,6 +104,7 @@ export default function ReportsPage() {
   const [repData, setRepData] = useState([]);
   const [agingData, setAgingData] = useState([]);
   const [attentionData, setAttentionData] = useState([]);
+  const [gongData, setGongData] = useState(null);
 
   useEffect(() => {
     if (preset === 'custom') return;
@@ -113,12 +127,14 @@ export default function ReportsPage() {
       api.get('/reports/rep-performance', { params }),
       api.get('/reports/deal-aging', { params }),
       api.get('/reports/attention', { params }),
-    ]).then(([summaryRes, pipelineRes, repRes, agingRes, attentionRes]) => {
+      api.get('/reports/gong-analytics', { params }),
+    ]).then(([summaryRes, pipelineRes, repRes, agingRes, attentionRes, gongRes]) => {
       setSummary(summaryRes.data);
       setPipelineData(pipelineRes.data);
       setRepData(repRes.data);
       setAgingData(agingRes.data);
       setAttentionData(attentionRes.data);
+      setGongData(gongRes.data);
     }).finally(() => setLoading(false));
   }, [preset, startDate, endDate]);
 
@@ -197,6 +213,248 @@ export default function ReportsPage() {
               accent="text-amber-600"
             />
           </div>
+
+          {gongData && (
+            <div className="space-y-6 rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+                      <Activity size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-stone-900">Gong-Style Sales Analytics</h3>
+                      <p className="text-sm text-stone-500">Activity quality, deal engagement, coaching signals, and risk patterns from CRM touchpoints.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl bg-stone-50 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Touchpoints</div>
+                    <div className="mt-1 text-2xl font-semibold text-stone-900">{gongData.summary.totalActivities}</div>
+                  </div>
+                  <div className="rounded-2xl bg-stone-50 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Conversation Mix</div>
+                    <div className="mt-1 text-2xl font-semibold text-stone-900">{gongData.summary.conversationRate}%</div>
+                  </div>
+                  <div className="rounded-2xl bg-stone-50 px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Deal Coverage</div>
+                    <div className="mt-1 text-2xl font-semibold text-stone-900">{gongData.summary.engagementCoverage}%</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+                <div className="rounded-2xl border border-stone-200 p-5">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-stone-900">
+                    <PhoneCall size={17} />
+                    Activity Mix
+                  </div>
+                  <div className="mt-4 h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[
+                        { type: 'Calls', count: gongData.activityMix.call },
+                        { type: 'Emails', count: gongData.activityMix.email },
+                        { type: 'Meetings', count: gongData.activityMix.meeting },
+                        { type: 'Notes', count: gongData.activityMix.note },
+                        { type: 'Tasks', count: gongData.activityMix.task },
+                      ]}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="type" />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Bar dataKey="count" name="Touchpoints" fill="#4f46e5" radius={[8, 8, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-stone-200 p-5">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-stone-900">
+                    <Users size={17} />
+                    Rep Coaching View
+                  </div>
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="min-w-full divide-y divide-stone-200">
+                      <thead className="bg-stone-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Rep</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Touches</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Calls</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Meetings</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Deals Touched</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">Conversation Mix</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-200">
+                        {gongData.repActivity.length === 0 ? (
+                          <tr><td colSpan="6" className="px-4 py-6 text-sm text-stone-500">No rep activity in this range.</td></tr>
+                        ) : gongData.repActivity.map((rep) => (
+                          <tr key={rep.user_id}>
+                            <td className="px-4 py-4 text-sm font-medium text-stone-900">{rep.name}</td>
+                            <td className="px-4 py-4 text-sm text-stone-600">{rep.total_activities}</td>
+                            <td className="px-4 py-4 text-sm text-stone-600">{rep.calls}</td>
+                            <td className="px-4 py-4 text-sm text-stone-600">{rep.meetings}</td>
+                            <td className="px-4 py-4 text-sm text-stone-600">{rep.deals_touched}</td>
+                            <td className="px-4 py-4 text-sm font-medium text-indigo-700">{rep.conversation_mix}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-stone-900">
+                    <Sparkles size={17} className="text-indigo-600" />
+                    AI Smart Report
+                  </div>
+                  {gongData.aiReport?.status === 'generated' && (
+                    <div className="text-xs text-stone-500">
+                      {gongData.aiReport.provider}{gongData.aiReport.model ? ` • ${gongData.aiReport.model}` : ''}
+                    </div>
+                  )}
+                </div>
+
+                {gongData.aiReport?.status === 'generated' ? (
+                  <div className="mt-4 grid gap-5 xl:grid-cols-[1fr_1fr]">
+                    <div className="space-y-4">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.2em] text-stone-500">Executive Summary</div>
+                        <p className="mt-2 text-sm leading-6 text-stone-700">{gongData.aiReport.executiveSummary}</p>
+                      </div>
+
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.2em] text-stone-500">Key Insights</div>
+                        <div className="mt-3 space-y-2">
+                          {gongData.aiReport.keyInsights.map((insight) => (
+                            <div key={`${insight.title}-${insight.detail}`} className="rounded-2xl bg-white p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="text-sm font-semibold text-stone-900">{insight.title}</div>
+                                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  insight.severity === 'critical' ? 'bg-rose-100 text-rose-700'
+                                    : insight.severity === 'warning' ? 'bg-amber-100 text-amber-700'
+                                      : insight.severity === 'positive' ? 'bg-emerald-100 text-emerald-700'
+                                        : 'bg-stone-100 text-stone-700'
+                                }`}>
+                                  {insight.severity}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-sm leading-6 text-stone-600">{insight.detail}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.2em] text-stone-500">Recommended Actions</div>
+                        <div className="mt-3 space-y-2">
+                          {gongData.aiReport.recommendedActions.map((item) => (
+                            <div key={`${item.owner}-${item.action}`} className="rounded-2xl bg-white p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="text-sm font-semibold text-stone-900">{item.action}</div>
+                                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  item.priority === 'high' ? 'bg-rose-100 text-rose-700'
+                                    : item.priority === 'medium' ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-stone-100 text-stone-700'
+                                }`}>
+                                  {item.priority}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-xs text-stone-500">Owner: {item.owner}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.2em] text-stone-500">Coaching Notes</div>
+                        <div className="mt-3 space-y-2">
+                          {gongData.aiReport.coachingNotes.map((note) => (
+                            <div key={`${note.rep}-${note.note}`} className="rounded-2xl bg-white p-4">
+                              <div className="text-sm font-semibold text-stone-900">{note.rep}</div>
+                              <p className="mt-1 text-sm leading-6 text-stone-600">{note.note}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {gongData.aiReport.risks.length > 0 && (
+                      <div className="xl:col-span-2">
+                        <div className="text-xs uppercase tracking-[0.2em] text-stone-500">AI-Flagged Risks</div>
+                        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                          {gongData.aiReport.risks.map((risk) => (
+                            <div key={`${risk.deal}-${risk.reason}`} className="rounded-2xl bg-white p-4">
+                              <div className="text-sm font-semibold text-stone-900">{risk.deal}</div>
+                              <p className="mt-1 text-sm leading-6 text-stone-600">{risk.reason}</p>
+                              <div className="mt-2 text-sm font-medium text-indigo-700">{risk.nextStep}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-dashed border-indigo-200 bg-white/70 p-5 text-sm text-stone-600">
+                    {gongData.aiReport?.error || 'No AI report generated. Configure and activate an AI provider in Settings.'}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+                <div className="rounded-2xl border border-stone-200 p-5">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-stone-900">
+                    <MessageSquare size={17} />
+                    Stage Engagement
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {gongData.stageEngagement.map((stage) => (
+                      <div key={stage.stage} className="grid gap-3 rounded-2xl bg-stone-50 p-4 md:grid-cols-[1fr_auto_auto] md:items-center">
+                        <div>
+                          <div className="text-sm font-semibold text-stone-900">{stage.stage}</div>
+                          <div className="mt-1 text-xs text-stone-500">{stage.open_deals} open deal(s), {stage.untouched_deals} untouched</div>
+                        </div>
+                        <div className="text-sm text-stone-600">{stage.avg_touches} avg touches</div>
+                        <div className="text-sm text-stone-600">{stage.avg_days_in_stage}d avg stage age</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-stone-200 p-5">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-stone-900">
+                    <ShieldAlert size={17} />
+                    Deal Risk Signals
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {gongData.atRiskDeals.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-stone-200 p-6 text-sm text-stone-500">No engagement risks detected for this range.</div>
+                    ) : gongData.atRiskDeals.map((deal) => (
+                      <div key={deal.id} className="rounded-2xl border border-stone-200 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold text-stone-900">{deal.title}</div>
+                            <div className="mt-1 text-xs text-stone-500">{deal.company_name || 'No company'} • {deal.owner_name || 'Unassigned'} • {fmt(deal.value)}</div>
+                          </div>
+                          <ScorePill score={deal.risk_score} />
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {deal.reasons.slice(0, 3).map((reason) => (
+                            <span key={reason} className="rounded-full bg-rose-50 px-2.5 py-1 text-xs text-rose-700">{reason}</span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
             <div className="rounded-[2rem] border border-stone-200 bg-white p-6 shadow-sm">
